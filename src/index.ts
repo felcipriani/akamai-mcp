@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { loadConfiguration } from './configuration/config.js';
 import { InvestigationError } from './domain/errors.js';

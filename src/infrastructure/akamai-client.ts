@@ -1,5 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import type { Configuration } from '../configuration/config.js';
+import { packageInfo } from '../configuration/package-info.js';
 import type { InvestigationContext } from '../application/context.js';
 import { InvestigationError } from '../domain/errors.js';
 import { parseJson } from '../domain/json.js';
@@ -38,7 +39,7 @@ export class AkamaiClient implements AkamaiReader {
     const reply = await this.http.request(url, request.method, request.body, () => ({
       Authorization: signEdgeGrid(credentials, request.method, url, request.body),
       Accept: 'application/json', 'Content-Type': 'application/json',
-      'User-Agent': 'akamai-investigation-mcp/0.1.0',
+      'User-Agent': `${packageInfo.name}/${packageInfo.version}`,
       ...(request.api === 'PAPI' ? { 'PAPI-Use-Prefixes': 'true' } : {}),
     }), context, request.api, operation, siem ? () => this.reserveSiemSlot(context) : undefined);
     const metadata = { text: reply.text, etag: reply.headers.get('etag'), retrievedAt: reply.retrievedAt, api: request.api, operation };

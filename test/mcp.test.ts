@@ -22,7 +22,7 @@ async function connect(fixture: boolean, extra: Record<string, string> = {}, mod
 }
 test('Real stdio handshake/list/call/shutdown without Akamai credentials', async t => {
   const session = await connect(false); t.after(() => session.client.close());
-  assert.equal(session.client.getServerVersion()?.name, 'akamai-investigation-mcp');
+  assert.equal(session.client.getServerVersion()?.name, 'akamai-mcp');
   assert.ok(session.client.getNegotiatedProtocolVersion());
   assert.ok(session.client.getServerCapabilities()?.tools);
   const list = await session.client.listTools(); assert.equal(list.tools.length, 21);

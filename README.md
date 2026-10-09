@@ -1,4 +1,4 @@
-# Akamai Investigation MCP
+# Akamai MCP
 
 Servidor MCP local, TypeScript/Node.js, com **21 ferramentas exclusivamente de leitura** para CDN/Property Manager, Application Security, SIEM e documentação oficial. Não exige hospedagem, banco, serviços de IA ou infraestrutura paga.
 
@@ -17,6 +17,26 @@ npm run smoke:mcp
 `check` executa TypeScript estrito (incluindo testes), ESLint, build e a suíte. Os testes não utilizam credenciais reais ou serviços externos: usam vetores oficiais, fixtures, HTTP em loopback e processos MCP reais. `smoke:mcp` inicia o servidor compilado pelo cliente SDK oficial gratuito, negocia MCP, lista as ferramentas e encerra o processo. Nenhuma API Akamai é consultada nesse comando.
 
 O servidor inicia **sem credenciais** para descoberta e documentação pública. Chamadas de APIs autenticadas nesse modo retornam `CONFIGURATION_ERROR`, sem requisições externas. Um conjunto parcial ou inválido de credenciais impede o startup, sem imprimir os valores.
+
+## Execução por npx e Kiro
+
+O pacote se chama `akamai-mcp` e inclui o executável compilado. Após a primeira publicação no npm:
+
+```sh
+npx -y --prefer-online akamai-mcp@latest
+```
+
+Node 24 deve estar no PATH do cliente. `-y` aceita a instalação sem pergunta interativa; `--prefer-online` força a consulta dos metadados no registro, mantendo o cache dos arquivos. `@latest` seleciona a versão publicada com essa tag. Atualizações entram ao iniciar/reconectar o servidor; um processo aberto continua executando sua versão atual. Para fixar uma versão, use `akamai-mcp@0.1.0`.
+
+Veja a [configuração do Kiro](docs/integration.md#kiro-com-npx) e o [guia de publicação e releases](docs/publishing.md). O código e o workflow estão preparados; isso não significa que o pacote já foi publicado ou que a GUI do Kiro foi homologada.
+
+Para validar a distribuição antes de publicar:
+
+```sh
+npm run smoke:package
+```
+
+Esse comando compila, gera um pacote temporário, verifica os arquivos incluídos e executa o pacote com o CLI npx em uma pasta externa ao projeto. Valida os dois protocolos MCP e as 21 ferramentas sem credenciais ou consultas Akamai. A instalação das dependências de produção pode consultar o npm; o diretório temporário é removido ao terminar.
 
 ## Configuração segura e consultas reais
 
@@ -84,6 +104,7 @@ SIEM espaça chamadas/tentativas em um segundo por processo. Corpos grandes gera
 - [Arquitetura](docs/architecture.md)
 - [Segurança](docs/security.md)
 - [Integração local gratuita](docs/integration.md)
+- [Publicação npm e releases](docs/publishing.md)
 - [Contratos oficiais das APIs](docs/apis.md)
 - [Pesquisa histórica da Fase 1](docs/research.md)
 

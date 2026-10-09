@@ -1,10 +1,25 @@
 {
-  "name": "akamai-investigation-mcp",
+  "name": "akamai-mcp",
   "version": "0.1.0",
-  "private": true,
   "description": "Local read-only Akamai investigation server over MCP stdio",
   "type": "module",
   "license": "MIT",
+  "bin": {
+    "akamai-mcp": "dist/index.js"
+  },
+  "files": ["dist", "docs/*.md", ".env.example"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/felcipriani/akamai-mcp.git"
+  },
+  "homepage": "https://github.com/felcipriani/akamai-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/felcipriani/akamai-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "engines": {
     "node": ">=24 <25"
   },
@@ -13,12 +28,14 @@
     "start": "node dist/index.js",
     "start:source": "tsx src/index.ts",
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "lint": "eslint src test scripts",
     "test": "npm run build && node --import tsx --test --test-reporter=tap test/*.test.ts",
     "check": "npm run typecheck && npm run lint && npm test",
     "smoke:akamai": "node --use-env-proxy scripts/akamai-smoke.mjs",
-    "smoke:mcp": "node scripts/mcp-smoke.mjs"
+    "smoke:mcp": "node scripts/mcp-smoke.mjs",
+    "smoke:package": "node scripts/package-smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.3.1",
