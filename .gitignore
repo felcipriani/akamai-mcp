@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.edgerc
+*.edgerc
+*.log
+.DS_Store
+coverage/
+.mcp.json
+credentials*.json
