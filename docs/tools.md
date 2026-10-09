@@ -1,13 +1,13 @@
 # Ferramentas MCP
 
-Catálogo de **21 ferramentas implementadas**, sem validação funcional. Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
+Catálogo de **21 ferramentas validadas localmente pelo cliente MCP oficial**, com fontes HTTP controladas. Consulta documental também validada contra TechDocs real. PAPI/AppSec retornaram 403 na conta; SIEM real permanece pendente. Veja [validation.md](validation.md). Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
 
 ## Convenções de argumentos
 
 | Convenção | Argumentos |
 | --- | --- |
 | Página local | `offset=0`, `limit=50` (1–500, limitado por AKAMAI_MAX_RESULTS). Percorra nextOffset, sem assumir que a primeira página é completa |
-| Referência property | `propertyId` obrigatório; `contractId` e `groupId` opcionais para desambiguação |
+| Referência property | `propertyId` obrigatório (inteiro positivo, prefixo `prp_` opcional); `contractId` e `groupId` opcionais para desambiguação |
 | Seleção property/segurança | `version` opcional; `environment=PRODUCTION`, podendo ser STAGING ou LATEST. version explícita prevalece e não comprova ativação |
 | Referência segurança | `configId` numérico positivo; `policyId` identifica política quando necessário |
 | Históricos | environment opcional PRODUCTION/STAGING; omitido retorna ambos na página local |
@@ -39,7 +39,7 @@ Origin, cache, TTL e headers estão na árvore e nos behaviors selecionados. O c
 | `list_security_configurations` | página local | GET AppSec configs | Acesso depende da conta/papel; recorte local do catálogo |
 | `get_active_security_configuration` | configId | GET AppSec config, includeHostnames=true | Versões AppSec independentes de PAPI |
 | `list_security_configuration_versions` | configId, page=1, pageSize=25 | GET AppSec versions, detail=true | Paginação remota; totalSize e versionList preservados |
-| `get_security_policy` | seleção segurança, policyId opcional, sections, página local | GET policies/policy/match-targets/rules/attack-groups/custom-rules/selected-hostnames | Sem policyId, seção que precisa dele retorna catálogo de políticas para próxima chamada. Seções independentes podem falhar parcialmente |
+| `get_security_policy` | seleção segurança, policyId opcional, sections, página local | GET policies/policy/match-targets/rules/attack-groups/custom-rules/selected-hostnames | Sem policyId, catálogo é consultado uma vez; seções dependentes são marcadas indisponíveis e as independentes continuam. Seções podem falhar parcialmente |
 | `get_rate_limiting_configuration` | seleção segurança, policyId opcional, página local | GET rate-policies e, com policyId, rate policy actions | Definição não comprova controle habilitado ou correspondência de endpoint |
 | `get_security_activation_history` | configId, environment opcional, página local | GET AppSec activations | Não é histórico CDN; não lista toda alteração de versão ainda não ativada |
 | `get_waf_events` | consulta SIEM abaixo | GET SIEM configs | Uma página upstream por chamada, filtros locais, retenção curta e coleta habilitada |

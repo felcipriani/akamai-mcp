@@ -1,3 +1,5 @@
+import { InvestigationError } from './errors.js';
+
 export type JsonValue = null | boolean | number | string | JsonValue[] | JsonObject;
 export type JsonObject = { [key: string]: JsonValue };
 
@@ -42,7 +44,9 @@ export function toJson(value: unknown, depth = 0): JsonValue {
 }
 
 export function nestedItems(value: JsonValue, key: string): JsonValue[] {
-  return asArray(asObject(asObject(value)[key])['items']);
+  const items = asObject(asObject(value)[key])['items'];
+  if (!Array.isArray(items)) throw new InvestigationError('INVALID_RESPONSE', `Resposta sem ${key}.items.`);
+  return items;
 }
 
 export function selectFields(value: JsonObject, keys: readonly string[]): JsonObject {

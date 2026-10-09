@@ -1,0 +1,58 @@
+{
+  "timestamp": "2026-10-09T22:50:22.633Z",
+  "node": "v24.19.0",
+  "mode": "real_read_only",
+  "checks": [
+    {
+      "step": "papi_properties_one_scope",
+      "status": "error",
+      "code": "PERMISSION_DENIED",
+      "httpStatus": 403
+    },
+    {
+      "step": "appsec_configurations",
+      "status": "error",
+      "code": "PERMISSION_DENIED",
+      "httpStatus": 403
+    },
+    {
+      "step": "siem",
+      "status": "skipped",
+      "reason": "no_authorized_config_id_discovered"
+    },
+    {
+      "step": "public_documentation_search",
+      "status": "success",
+      "sources": [
+        {
+          "api": "Akamai TechDocs",
+          "operation": "documentation_index",
+          "records": null
+        },
+        {
+          "api": "Akamai TechDocs",
+          "operation": "documentation_index",
+          "records": null
+        },
+        {
+          "api": "Akamai TechDocs",
+          "operation": "search_public_indexes",
+          "records": 1
+        }
+      ],
+      "unavailable": []
+    },
+    {
+      "step": "public_documentation_page",
+      "status": "success",
+      "sources": [
+        {
+          "api": "Akamai TechDocs",
+          "operation": "documentation_page",
+          "records": null
+        }
+      ],
+      "unavailable": []
+    }
+  ]
+}

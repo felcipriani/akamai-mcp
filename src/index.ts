@@ -1,4 +1,4 @@
-import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { loadConfiguration } from './configuration/config.js';
 import { InvestigationError } from './domain/errors.js';
 import { logEvent } from './infrastructure/redaction.js';
@@ -10,15 +10,19 @@ async function main(): Promise<void> {
   }
   const configuration = loadConfiguration();
   const shutdown = new AbortController();
-  const server = createServer(configuration, shutdown.signal);
-  server.server.onclose = () => shutdown.abort();
+  const handle = serveStdio(() => {
+    // Probe instances can be discarded without shutting down the session.
+    const instanceShutdown = new AbortController();
+    const server = createServer(configuration, AbortSignal.any([shutdown.signal, instanceShutdown.signal]));
+    server.server.onclose = () => instanceShutdown.abort();
+    return server;
+  }, { onerror: () => logEvent('transport_error') });
   const stop = (): void => {
     shutdown.abort();
-    void server.close().catch(() => logEvent('shutdown_error'));
+    void handle.close().catch(() => logEvent('shutdown_error'));
   };
   process.once('SIGINT', stop);
   process.once('SIGTERM', stop);
-  await server.connect(new StdioServerTransport());
   logEvent('server_connected');
 }
 

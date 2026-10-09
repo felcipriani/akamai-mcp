@@ -21,7 +21,7 @@ const settingsSchema = z.object({
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
-export interface Configuration { credentials: Credentials; siemCredentials: Credentials; settings: Settings }
+export interface Configuration { credentials: Credentials | null; siemCredentials: Credentials | null; settings: Settings }
 
 function loadCredentials(env: NodeJS.ProcessEnv, prefix: string): Credentials {
   const parsed = credentialsSchema.safeParse({
@@ -35,7 +35,9 @@ function loadCredentials(env: NodeJS.ProcessEnv, prefix: string): Credentials {
 }
 
 export function loadConfiguration(env: NodeJS.ProcessEnv = process.env): Configuration {
-  const credentials = loadCredentials(env, 'AKAMAI_');
+  const keys = ['HOST', 'CLIENT_TOKEN', 'CLIENT_SECRET', 'ACCESS_TOKEN'];
+  const hasCredentials = keys.some(key => Boolean(env[`AKAMAI_${key}`]));
+  const credentials = hasCredentials ? loadCredentials(env, 'AKAMAI_') : null;
   const siemKeys = ['HOST', 'CLIENT_TOKEN', 'CLIENT_SECRET', 'ACCESS_TOKEN'];
   const hasSiemCredentials = siemKeys.some(key => Boolean(env[`AKAMAI_SIEM_${key}`]));
   const siemCredentials = hasSiemCredentials ? loadCredentials(env, 'AKAMAI_SIEM_') : credentials;

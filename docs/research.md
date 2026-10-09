@@ -1,5 +1,7 @@
 # Pesquisa técnica e decisão
 
+> Documento histórico da Fase 1. Seu status e restrições referem-se àquela entrega; a Fase 2 foi autorizada e executada. Resultados atuais em [validation.md](validation.md).
+
 Pesquisa documental realizada em **9 de outubro de 2026**, sem executar operações Akamai ou os servidores pesquisados. Foram consultados READMEs, licenças, metadados públicos GitHub, documentação oficial, especificações OpenAPI e metadados npm. Nenhuma afirmação de maturidade abaixo é resultado de teste próprio.
 
 ## Alternativas encontradas

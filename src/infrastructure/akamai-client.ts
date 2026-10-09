@@ -27,6 +27,7 @@ export class AkamaiClient implements AkamaiReader {
       throw new InvestigationError('CONFIGURATION_ERROR', 'SIEM não suporta accountSwitchKey. Configure credenciais SIEM da conta de destino.');
     }
     const credentials = siem ? this.configuration.siemCredentials : this.configuration.credentials;
+    if (!credentials) throw new InvestigationError('CONFIGURATION_ERROR', 'Credenciais Akamai não configuradas. Configure pelo ambiente seguro; documentação pública e protocolo MCP permanecem disponíveis.');
     const url = new URL(request.path, `https://${credentials.host}`);
     for (const [key, value] of Object.entries(query)) {
       if (value !== undefined) url.searchParams.set(key, String(value));

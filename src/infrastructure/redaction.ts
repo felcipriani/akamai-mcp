@@ -9,9 +9,9 @@ export class Redactor {
   private readonly secrets: string[];
 
   constructor(configuration: Configuration) {
-    this.secrets = [...new Set([configuration.credentials, configuration.siemCredentials].flatMap(credentials => [
+    this.secrets = [...new Set([configuration.credentials, configuration.siemCredentials].flatMap(credentials => credentials ? [
       credentials.clientToken, credentials.clientSecret, credentials.accessToken,
-    ]))].filter(value => value.length > 0);
+    ] : []))].filter(value => value.length > 0).sort((left, right) => right.length - left.length);
   }
 
   text(value: string): string {
@@ -24,11 +24,11 @@ export class Redactor {
     if (typeof value === 'string') return this.text(value);
     if (value === null || typeof value !== 'object') return value;
     if (Array.isArray(value)) return value.map(item => this.json(item));
-    const result: JsonObject = {};
+    const result: JsonObject = Object.create(null) as JsonObject;
     const headerName = value['headerName'] ?? value['name'];
     const sensitiveNamedValue = typeof headerName === 'string' && sensitiveHeader.test(headerName);
     for (const [key, item] of Object.entries(value)) {
-      result[key] = sensitiveKey.test(key) || (sensitiveNamedValue && /^(value|headerValue|newHeaderValue)$/i.test(key))
+      result[this.text(key)] = sensitiveKey.test(key) || (sensitiveNamedValue && /^(value|headerValue|newHeaderValue)$/i.test(key))
         ? '[REDACTED]'
         : this.json(item);
     }

@@ -1,0 +1,686 @@
+
+> akamai-investigation-mcp@0.1.0 check
+> npm run typecheck && npm run lint && npm test
+
+
+> akamai-investigation-mcp@0.1.0 typecheck
+> tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> akamai-investigation-mcp@0.1.0 lint
+> eslint src test scripts
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+
+> akamai-investigation-mcp@0.1.0 test
+> npm run build && node --import tsx --test --test-reporter=tap test/*.test.ts
+
+
+> akamai-investigation-mcp@0.1.0 build
+> tsc -p tsconfig.json
+
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+TAP version 13
+# Subtest: EdgeGrid official: simple GET
+ok 1 - EdgeGrid official: simple GET
+  ---
+  duration_ms: 1.867128
+  type: 'test'
+  ...
+# Subtest: EdgeGrid official: GET with querystring
+ok 2 - EdgeGrid official: GET with querystring
+  ---
+  duration_ms: 0.247283
+  type: 'test'
+  ...
+# Subtest: EdgeGrid official: Post uses passed-max-body
+ok 3 - EdgeGrid official: Post uses passed-max-body
+  ---
+  duration_ms: 0.305378
+  type: 'test'
+  ...
+# Subtest: EdgeGrid official: POST empty body
+ok 4 - EdgeGrid official: POST empty body
+  ---
+  duration_ms: 0.159131
+  type: 'test'
+  ...
+# Subtest: EdgeGrid renews nonce and authenticates query and body
+ok 5 - EdgeGrid renews nonce and authenticates query and body
+  ---
+  duration_ms: 1.127009
+  type: 'test'
+  ...
+# Subtest: No credentials enables local MCP; partial or invalid credentials fail safely
+ok 6 - No credentials enables local MCP; partial or invalid credentials fail safely
+  ---
+  duration_ms: 1.675181
+  type: 'test'
+  ...
+# Subtest: Hostname rejects https://example.com
+ok 7 - Hostname rejects https://example.com
+  ---
+  duration_ms: 0.479526
+  type: 'test'
+  ...
+# Subtest: Hostname rejects *.example.com
+ok 8 - Hostname rejects *.example.com
+  ---
+  duration_ms: 0.267669
+  type: 'test'
+  ...
+# Subtest: Hostname rejects -bad.example.com
+ok 9 - Hostname rejects -bad.example.com
+  ---
+  duration_ms: 0.176857
+  type: 'test'
+  ...
+# Subtest: Hostname rejects example.com:443
+ok 10 - Hostname rejects example.com:443
+  ---
+  duration_ms: 0.255158
+  type: 'test'
+  ...
+# Subtest: Hostname rejects
+ok 11 - Hostname rejects
+  ---
+  duration_ms: 0.207141
+  type: 'test'
+  ...
+# Subtest: Hostname rejects aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ok 12 - Hostname rejects aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ---
+  duration_ms: 0.132713
+  type: 'test'
+  ...
+# Subtest: Hostname rejects aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ok 13 - Hostname rejects aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ---
+  duration_ms: 0.180021
+  type: 'test'
+  ...
+# Subtest: Hostname IDNA and defaults
+ok 14 - Hostname IDNA and defaults
+  ---
+  duration_ms: 1.246126
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"../123"}
+ok 15 - Property schema rejects {"propertyId":"../123"}
+  ---
+  duration_ms: 0.670165
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"abc"}
+ok 16 - Property schema rejects {"propertyId":"abc"}
+  ---
+  duration_ms: 0.155136
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_0"}
+ok 17 - Property schema rejects {"propertyId":"prp_0"}
+  ---
+  duration_ms: 0.09769
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {}
+ok 18 - Property schema rejects {}
+  ---
+  duration_ms: 0.133204
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_1","version":0}
+ok 19 - Property schema rejects {"propertyId":"prp_1","version":0}
+  ---
+  duration_ms: 0.182564
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_1","limit":0}
+ok 20 - Property schema rejects {"propertyId":"prp_1","limit":0}
+  ---
+  duration_ms: 0.349844
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_1","limit":501}
+ok 21 - Property schema rejects {"propertyId":"prp_1","limit":501}
+  ---
+  duration_ms: 0.122005
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_1","offset":-1}
+ok 22 - Property schema rejects {"propertyId":"prp_1","offset":-1}
+  ---
+  duration_ms: 0.199039
+  type: 'test'
+  ...
+# Subtest: Property schema rejects {"propertyId":"prp_1","url":"https://evil.test"}
+ok 23 - Property schema rejects {"propertyId":"prp_1","url":"https://evil.test"}
+  ---
+  duration_ms: 0.124511
+  type: 'test'
+  ...
+# Subtest: Configuration id rejects 0
+ok 24 - Configuration id rejects 0
+  ---
+  duration_ms: 0.286659
+  type: 'test'
+  ...
+# Subtest: Configuration id rejects -1
+ok 25 - Configuration id rejects -1
+  ---
+  duration_ms: 0.07234
+  type: 'test'
+  ...
+# Subtest: Configuration id rejects 1.2
+ok 26 - Configuration id rejects 1.2
+  ---
+  duration_ms: 0.086956
+  type: 'test'
+  ...
+# Subtest: Configuration id rejects 123
+ok 27 - Configuration id rejects 123
+  ---
+  duration_ms: 0.067087
+  type: 'test'
+  ...
+# Subtest: Configuration id rejects 9007199254740992
+ok 28 - Configuration id rejects 9007199254740992
+  ---
+  duration_ms: 0.145758
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {}
+ok 29 - SIEM query rejects {}
+  ---
+  duration_ms: 0.894109
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {"from":2,"to":1}
+ok 30 - SIEM query rejects {"from":2,"to":1}
+  ---
+  duration_ms: 0.169633
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {"from":1}
+ok 31 - SIEM query rejects {"from":1}
+  ---
+  duration_ms: 0.09706
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {"offset":"token","from":1,"to":2}
+ok 32 - SIEM query rejects {"offset":"token","from":1,"to":2}
+  ---
+  duration_ms: 0.189213
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {"offset":"space token"}
+ok 33 - SIEM query rejects {"offset":"space token"}
+  ---
+  duration_ms: 0.242361
+  type: 'test'
+  ...
+# Subtest: SIEM query rejects {"from":1,"to":2,"configIds":[1,1]}
+ok 34 - SIEM query rejects {"from":1,"to":2,"configIds":[1,1]}
+  ---
+  duration_ms: 0.159175
+  type: 'test'
+  ...
+# Subtest: Change investigation rejects inverted ISO interval
+ok 35 - Change investigation rejects inverted ISO interval
+  ---
+  duration_ms: 1.175286
+  type: 'test'
+  ...
+# Subtest: Read policy blocks route injection, inherited names, administrative operations and query overrides
+ok 36 - Read policy blocks route injection, inherited names, administrative operations and query overrides
+  ---
+  duration_ms: 0.706214
+  type: 'test'
+  ...
+# Subtest: Structural diff ignores object key order and preserves array order and escaped pointers
+ok 37 - Structural diff ignores object key order and preserves array order and escaped pointers
+  ---
+  duration_ms: 0.434685
+  type: 'test'
+  ...
+# Subtest: Nested rules retain ancestral conditions
+ok 38 - Nested rules retain ancestral conditions
+  ---
+  duration_ms: 0.312124
+  type: 'test'
+  ...
+# Subtest: Pointer and pagination protect prototype and enforce limits
+ok 39 - Pointer and pagination protect prototype and enforce limits
+  ---
+  duration_ms: 0.626404
+  type: 'test'
+  ...
+# Subtest: Official SIEM fixture decodes rule facets and omits personal payloads
+ok 40 - Official SIEM fixture decodes rule facets and omits personal payloads
+  ---
+  duration_ms: 0.569565
+  type: 'test'
+  ...
+# Subtest: SIEM validates completion, malformed facets, totals and empty results
+ok 41 - SIEM validates completion, malformed facets, totals and empty results
+  ---
+  duration_ms: 0.91541
+  type: 'test'
+  ...
+# Subtest: Redaction covers values, field names, headers, overlapping secrets and EdgeGrid
+ok 42 - Redaction covers values, field names, headers, overlapping secrets and EdgeGrid
+  ---
+  duration_ms: 0.76669
+  type: 'test'
+  ...
+# Subtest: Budget and cancellation are deterministic
+ok 43 - Budget and cancellation are deterministic
+  ---
+  duration_ms: 0.614293
+  type: 'test'
+  ...
+# Subtest: HTTP 401 maps to AUTHENTICATION_FAILED
+ok 44 - HTTP 401 maps to AUTHENTICATION_FAILED
+  ---
+  duration_ms: 14.798578
+  type: 'test'
+  ...
+# Subtest: HTTP 403 maps to PERMISSION_DENIED
+ok 45 - HTTP 403 maps to PERMISSION_DENIED
+  ---
+  duration_ms: 0.86932
+  type: 'test'
+  ...
+# Subtest: HTTP 404 maps to NOT_FOUND
+ok 46 - HTTP 404 maps to NOT_FOUND
+  ---
+  duration_ms: 0.749098
+  type: 'test'
+  ...
+# Subtest: HTTP 416 maps to OFFSET_EXPIRED
+ok 47 - HTTP 416 maps to OFFSET_EXPIRED
+  ---
+  duration_ms: 1.964874
+  type: 'test'
+  ...
+# Subtest: HTTP 428 maps to FEATURE_AVAILABILITY_UNKNOWN
+ok 48 - HTTP 428 maps to FEATURE_AVAILABILITY_UNKNOWN
+  ---
+  duration_ms: 0.776582
+  type: 'test'
+  ...
+# Subtest: HTTP 429 maps to RATE_LIMITED
+ok 49 - HTTP 429 maps to RATE_LIMITED
+  ---
+  duration_ms: 0.580976
+  type: 'test'
+  ...
+# Subtest: HTTP 500 maps to UPSTREAM_ERROR
+ok 50 - HTTP 500 maps to UPSTREAM_ERROR
+  ---
+  duration_ms: 0.665653
+  type: 'test'
+  ...
+# Subtest: HTTP 502 maps to UPSTREAM_ERROR
+ok 51 - HTTP 502 maps to UPSTREAM_ERROR
+  ---
+  duration_ms: 0.577834
+  type: 'test'
+  ...
+# Subtest: HTTP 503 maps to UPSTREAM_ERROR
+ok 52 - HTTP 503 maps to UPSTREAM_ERROR
+  ---
+  duration_ms: 0.835435
+  type: 'test'
+  ...
+# Subtest: HTTP 504 maps to UPSTREAM_ERROR
+ok 53 - HTTP 504 maps to UPSTREAM_ERROR
+  ---
+  duration_ms: 1.251666
+  type: 'test'
+  ...
+# Subtest: HTTP 302 maps to UPSTREAM_ERROR
+ok 54 - HTTP 302 maps to UPSTREAM_ERROR
+  ---
+  duration_ms: 0.548689
+  type: 'test'
+  ...
+# Subtest: Transient response retries with fresh signatures and honors Retry-After
+ok 55 - Transient response retries with fresh signatures and honors Retry-After
+  ---
+  duration_ms: 17.665036
+  type: 'test'
+  ...
+# Subtest: Retry-After exceeding cap does not retry or wait
+ok 56 - Retry-After exceeding cap does not retry or wait
+  ---
+  duration_ms: 0.708247
+  type: 'test'
+  ...
+# Subtest: HTTP-date Retry-After exceeding cap is respected
+ok 57 - HTTP-date Retry-After exceeding cap is respected
+  ---
+  duration_ms: 0.638393
+  type: 'test'
+  ...
+# Subtest: Retry exhaustion and network failure protect internal details
+ok 58 - Retry exhaustion and network failure protect internal details
+  ---
+  duration_ms: 1.923018
+  type: 'test'
+  ...
+# Subtest: Body limit cancels oversized streams
+ok 59 - Body limit cancels oversized streams
+  ---
+  duration_ms: 1.637514
+  type: 'test'
+  ...
+# Subtest: Malformed JSON does not masquerade as a success
+ok 60 - Malformed JSON does not masquerade as a success
+  ---
+  duration_ms: 0.485169
+  type: 'test'
+  ...
+# Subtest: Akamai URL, POST body and fixed PAPI headers match the closed contract
+ok 61 - Akamai URL, POST body and fixed PAPI headers match the closed contract
+  ---
+  duration_ms: 2.155167
+  type: 'test'
+  ...
+# Subtest: Missing credentials and disabled/cross-account SIEM make zero requests
+ok 62 - Missing credentials and disabled/cross-account SIEM make zero requests
+  ---
+  duration_ms: 0.557996
+  type: 'test'
+  ...
+# Subtest: SIEM encodes configIds and spaces retries/calls by one second
+ok 63 - SIEM encodes configIds and spaces retries/calls by one second
+  ---
+  duration_ms: 1003.224575
+  type: 'test'
+  ...
+# Subtest: Documentation source rejects arbitrary URLs and redirects
+ok 64 - Documentation source rejects arbitrary URLs and redirects
+  ---
+  duration_ms: 1.353285
+  type: 'test'
+  ...
+# Subtest: Real local HTTP transport covers body timeout and cancellation
+ok 65 - Real local HTTP transport covers body timeout and cancellation
+  ---
+  duration_ms: 160.714732
+  type: 'test'
+  ...
+# Subtest: Property production, staging and latest remain distinct; absent active has no fallback
+ok 66 - Property production, staging and latest remain distinct; absent active has no fallback
+  ---
+  duration_ms: 4.390546
+  type: 'test'
+  ...
+# Subtest: Property scope and hostname candidates preserve pagination and multiple properties
+ok 67 - Property scope and hostname candidates preserve pagination and multiple properties
+  ---
+  duration_ms: 12.947145
+  type: 'test'
+  ...
+# Subtest: Missing PAPI arrays are rejected rather than reported as no properties
+ok 68 - Missing PAPI arrays are rejected rather than reported as no properties
+  ---
+  duration_ms: 0.613981
+  type: 'test'
+  ...
+# Subtest: Security versions are independent of property versions and independent sections survive policy discovery
+ok 69 - Security versions are independent of property versions and independent sections survive policy discovery
+  ---
+  duration_ms: 1.616205
+  type: 'test'
+  ...
+# Subtest: AppSec partial permissions preserve successful sections and rate policy actions
+ok 70 - AppSec partial permissions preserve successful sections and rate policy actions
+  ---
+  duration_ms: 1.117755
+  type: 'test'
+  ...
+# Subtest: AppSec missing activation history is an error
+ok 71 - AppSec missing activation history is an error
+  ---
+  duration_ms: 0.525529
+  type: 'test'
+  ...
+# Subtest: Scenario A: exact SIEM request denial supplies evidence and rule IDs
+ok 72 - Scenario A: exact SIEM request denial supplies evidence and rule IDs
+  ---
+  duration_ms: 2.145305
+  type: 'test'
+  ...
+# Subtest: Scenario B: 403 without final denial or without events is inconclusive
+ok 73 - Scenario B: 403 without final denial or without events is inconclusive
+  ---
+  duration_ms: 1.429561
+  type: 'test'
+  ...
+# Subtest: Scenario C: activation in window and config diff do not establish causality
+ok 74 - Scenario C: activation in window and config diff do not establish causality
+  ---
+  duration_ms: 1.880069
+  type: 'test'
+  ...
+# Subtest: Scenario D: management API 403 keeps other sources and does not imply application blockage
+ok 75 - Scenario D: management API 403 keeps other sources and does not imply application blockage
+  ---
+  duration_ms: 1.201409
+  type: 'test'
+  ...
+# Subtest: Scenario E: outside retention fails before upstream and does not invent history
+ok 76 - Scenario E: outside retention fails before upstream and does not invent history
+  ---
+  duration_ms: 0.836195
+  type: 'test'
+  ...
+# Subtest: Local SIEM pagination releases remote offset only after consuming matched events
+ok 77 - Local SIEM pagination releases remote offset only after consuming matched events
+  ---
+  duration_ms: 1.354821
+  type: 'test'
+  ...
+# Subtest: Document catalog ranking, partial index failure and character paging
+ok 78 - Document catalog ranking, partial index failure and character paging
+  ---
+  duration_ms: 4.592581
+  type: 'test'
+  ...
+# Subtest: Real stdio handshake/list/call/shutdown without Akamai credentials
+ok 79 - Real stdio handshake/list/call/shutdown without Akamai credentials
+  ---
+  duration_ms: 300.229365
+  type: 'test'
+  ...
+# Subtest: Modern MCP 2026-07-28 negotiation supports discovery and calls
+ok 80 - Modern MCP 2026-07-28 negotiation supports discovery and calls
+  ---
+  duration_ms: 512.065523
+  type: 'test'
+  ...
+# Subtest: All 21 tools execute over real MCP stdio with controlled upstream fixtures
+    # Subtest: list_properties
+    ok 1 - list_properties
+      ---
+      duration_ms: 64.009599
+      type: 'test'
+      ...
+    # Subtest: find_property_by_hostname
+    ok 2 - find_property_by_hostname
+      ---
+      duration_ms: 4.311654
+      type: 'test'
+      ...
+    # Subtest: get_active_property_version
+    ok 3 - get_active_property_version
+      ---
+      duration_ms: 3.072221
+      type: 'test'
+      ...
+    # Subtest: list_property_versions
+    ok 4 - list_property_versions
+      ---
+      duration_ms: 3.435211
+      type: 'test'
+      ...
+    # Subtest: get_property_configuration
+    ok 5 - get_property_configuration
+      ---
+      duration_ms: 4.404947
+      type: 'test'
+      ...
+    # Subtest: compare_property_versions
+    ok 6 - compare_property_versions
+      ---
+      duration_ms: 4.599622
+      type: 'test'
+      ...
+    # Subtest: get_property_activation_history
+    ok 7 - get_property_activation_history
+      ---
+      duration_ms: 3.19856
+      type: 'test'
+      ...
+    # Subtest: explain_cdn_behavior
+    ok 8 - explain_cdn_behavior
+      ---
+      duration_ms: 4.438588
+      type: 'test'
+      ...
+    # Subtest: get_hostname_overview
+    ok 9 - get_hostname_overview
+      ---
+      duration_ms: 6.020159
+      type: 'test'
+      ...
+    # Subtest: list_security_configurations
+    ok 10 - list_security_configurations
+      ---
+      duration_ms: 3.396744
+      type: 'test'
+      ...
+    # Subtest: get_active_security_configuration
+    ok 11 - get_active_security_configuration
+      ---
+      duration_ms: 2.940242
+      type: 'test'
+      ...
+    # Subtest: list_security_configuration_versions
+    ok 12 - list_security_configuration_versions
+      ---
+      duration_ms: 2.788567
+      type: 'test'
+      ...
+    # Subtest: get_security_policy
+    ok 13 - get_security_policy
+      ---
+      duration_ms: 4.389656
+      type: 'test'
+      ...
+    # Subtest: get_rate_limiting_configuration
+    ok 14 - get_rate_limiting_configuration
+      ---
+      duration_ms: 3.683105
+      type: 'test'
+      ...
+    # Subtest: get_security_activation_history
+    ok 15 - get_security_activation_history
+      ---
+      duration_ms: 2.989709
+      type: 'test'
+      ...
+    # Subtest: get_waf_events
+    ok 16 - get_waf_events
+      ---
+      duration_ms: 4.557387
+      type: 'test'
+      ...
+    # Subtest: investigate_waf_request
+    ok 17 - investigate_waf_request
+      ---
+      duration_ms: 1001.191602
+      type: 'test'
+      ...
+    # Subtest: investigate_http_403
+    ok 18 - investigate_http_403
+      ---
+      duration_ms: 1002.58869
+      type: 'test'
+      ...
+    # Subtest: investigate_configuration_change
+    ok 19 - investigate_configuration_change
+      ---
+      duration_ms: 5.440445
+      type: 'test'
+      ...
+    # Subtest: search_akamai_documentation
+    ok 20 - search_akamai_documentation
+      ---
+      duration_ms: 4.800889
+      type: 'test'
+      ...
+    # Subtest: get_akamai_documentation
+    ok 21 - get_akamai_documentation
+      ---
+      duration_ms: 2.628814
+      type: 'test'
+      ...
+    1..21
+ok 81 - All 21 tools execute over real MCP stdio with controlled upstream fixtures
+  ---
+  duration_ms: 2373.643551
+  type: 'test'
+  ...
+# Subtest: MCP rejects invalid arguments and unknown tools, then remains responsive
+ok 82 - MCP rejects invalid arguments and unknown tools, then remains responsive
+  ---
+  duration_ms: 219.206963
+  type: 'test'
+  ...
+# Subtest: MCP bounds concurrent calls and response bytes
+ok 83 - MCP bounds concurrent calls and response bytes
+  ---
+  duration_ms: 441.73655
+  type: 'test'
+  ...
+# Subtest: MCP cancellation reaches pending HTTP and frees concurrency budget
+ok 84 - MCP cancellation reaches pending HTTP and frees concurrency budget
+  ---
+  duration_ms: 556.228532
+  type: 'test'
+  ...
+1..84
+# tests 105
+# suites 0
+# pass 105
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5252.022631
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+npm notice
+npm notice New major version of npm available! 11.9.0 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice

@@ -1,6 +1,6 @@
 import type { Settings } from '../configuration/config.js';
 import { InvestigationError } from '../domain/errors.js';
-import { asArray, asObject, positiveVersion } from '../domain/json.js';
+import { asObject, positiveVersion } from '../domain/json.js';
 import type { JsonObject } from '../domain/json.js';
 import { localPage } from '../domain/pagination.js';
 import type { Page } from '../domain/pagination.js';
@@ -65,14 +65,18 @@ export class SecurityInvestigation {
   async policy(ref: SecuritySelection & Page & { policyId?: string | undefined; sections: PolicySection[] }, context: InvestigationContext): Promise<InvestigationResult> {
     const selected = await this.resolveVersion(ref, context);
     const output = selected.metadata;
+    let policiesListed = false;
     for (const section of ref.sections) {
       const definition = policySections[section];
       if (definition.needsPolicy && !ref.policyId) {
-        await collect(output, section, { configId: ref.configId }, context, async () => {
+        if (!policiesListed) await collect(output, 'policy_discovery', { configId: ref.configId }, context, async () => {
           const reply = await this.reader.read('securityPolicies', { configId: ref.configId, version: selected.version }, {}, context);
           return this.sliceReply(reply, { configId: ref.configId, version: selected.version }, 'policies', ref);
         });
-        break;
+        policiesListed = true;
+        output.status = 'partial';
+        output.unavailable.push({ component: section, resource: { configId: ref.configId, version: selected.version }, reason: 'Informe policyId do catálogo para consultar esta seção.' });
+        continue;
       }
       await collect(output, section, { configId: ref.configId, version: selected.version, policyId: ref.policyId ?? null }, context, async () => {
         const parameters: Record<string, string | number> = { configId: ref.configId };
@@ -104,7 +108,9 @@ export class SecurityInvestigation {
 
   async activations(ref: { configId: number; environment?: 'PRODUCTION' | 'STAGING' | undefined } & Page, context: InvestigationContext): Promise<InvestigationResult> {
     const reply = await this.reader.read('securityActivations', { configId: ref.configId }, {}, context);
-    const entries = asArray(asObject(reply.data)['activationHistory']).filter(item => !ref.environment || asObject(item)['network'] === ref.environment);
+    const history = asObject(reply.data)['activationHistory'];
+    if (!Array.isArray(history)) throw new InvestigationError('INVALID_RESPONSE', 'API não retornou activationHistory.');
+    const entries = history.filter(item => !ref.environment || asObject(item)['network'] === ref.environment);
     const page = localPage(entries, ref, this.settings.maxResults);
     const item = apiEvidence(reply, { configId: ref.configId, environment: ref.environment ?? 'BOTH' }, page.items);
     item.pagination = page.pagination;

@@ -1,12 +1,12 @@
 # Arquitetura implementada
 
-**Fase 1: código e documentação completos, sem execução de validação.**
+**Fase 2: validação local executada; homologação PAPI/AppSec/SIEM real pendente de acesso.** Veja [validation.md](validation.md).
 
 ## Organização e dependências
 
 ```text
 src/
-  index.ts                         composição e ciclo stdio
+  index.ts                         composição e serveStdio dual-era
   configuration/config.ts          variáveis, credenciais e limites
   mcp/schemas.ts                   schemas de entrada Zod
   mcp/server.ts                    21 ferramentas e respostas MCP
@@ -35,7 +35,7 @@ src/
     redaction.ts                   mascaramento e logs mínimos em stderr
 ```
 
-O composition root cria um cliente Akamai compartilhado, casos de uso e fonte documental. As duas interfaces em `application/ports.ts` existem para inverter a dependência de transporte de integrações realmente distintas. Casos de uso dependem de leitura, e infraestrutura implementa esses contratos. Não há repositório de banco, container de DI, classes base ou framework interno.
+A entrada oficial serveStdio seleciona a era initialize/discover e cria uma instância por sessão. Probes descartáveis têm AbortController próprio, para não cancelar a sessão seguinte. O composition root cria um cliente Akamai compartilhado, casos de uso e fonte documental. As duas interfaces em `application/ports.ts` existem para inverter a dependência de transporte de integrações realmente distintas. Casos de uso dependem de leitura, e infraestrutura implementa esses contratos. Não há repositório de banco, container de DI, classes base ou framework interno.
 
 Configuration fornece objetos tipados e imutáveis por convenção. Domain contém regras puras de dados, política de operações e erros; não conhece MCP ou rede. Alguns limites e sinais são compartilhados entre camadas por necessidade de controle do processo. A estrutura aplica Clean Architecture pragmaticamente, com composição, coesão por API, tipos estritos, guard clauses e reutilização das investigações operacionais.
 
@@ -88,12 +88,15 @@ O transporte limita tempo por tentativa e investigação, número total de tenta
 | --- | --- | --- | --- |
 | @modelcontextprotocol/server | 2.3.1 | Apache-2.0 | Protocolo e stdio |
 | zod | 4.2.0 | MIT | Schemas e configuração |
-| typescript | 5.9.3 | Apache-2.0 | Compilação futura, não executada |
-| tsx | 4.20.6 | MIT | Execução futura em desenvolvimento |
+| typescript | 5.9.3 | Apache-2.0 | Compilação validada |
+| tsx | 4.20.6 | MIT | Execução fonte e testes |
 | @types/node | 24.10.1 | MIT | Tipagem de Node |
+| @modelcontextprotocol/client | 2.3.1 | Apache-2.0 | Cliente gratuito de referência e testes |
+| eslint | 10.12.0 | MIT | Análise estática |
+| typescript-eslint | 8.71.1 | MIT | Regras TypeScript |
 
 Manifesto MCP depende de `@modelcontextprotocol/core` 2.3.1 (Apache-2.0) e Zod ^4.2.0. Transitividades resolvidas incluem esbuild, get-tsconfig, resolve-pkg-maps, undici-types e fsevents opcional, com licença MIT nos manifestos lidos. `package-lock.json` fixa integridades e versões. Nenhum serviço adicional é obrigatório; APIs dependem do contrato existente. A documentação dessas versões está nas [releases oficiais MCP](https://github.com/modelcontextprotocol/typescript-sdk/releases), [manifesto npm MCP](https://registry.npmjs.org/@modelcontextprotocol/server/2.3.1) e nos manifestos das demais dependências.
 
 ## Persistência, disponibilidade e escopo
 
-Não há persistência, cache histórico, socket de servidor HTTP, integração cloud ou leitura de credenciais por ferramentas. Recursos corporativos só são consultados a pedido do cliente. Documentação funciona sem autenticação Akamai na chamada HTTP, embora o processo exija configuração de credenciais principal no startup. Proxy corporativo que demande agente HTTP específico não foi implementado; rede/proxy/TLS precisam ser tratados na Fase 2, sem desabilitar verificação de certificados.
+Não há persistência, cache histórico, socket de servidor HTTP, integração cloud ou leitura de credenciais por ferramentas. Recursos corporativos só são consultados a pedido do cliente. Sem credenciais, a sessão MCP e documentação pública funcionam; consultas autenticadas falham antes da rede. Configuração parcial é rejeitada. O transporte nativo Node 24 respeita proxy com --use-env-proxy, validado na consulta documental real; CA/TLS permanecem ativos. Testes usam as portas existentes e um preload exclusivo do processo filho para controlar HTTP, sem injeção de fixture no runtime operacional.

@@ -34,15 +34,17 @@ export type Parameters = Readonly<Record<string, string | number>>;
 export type Query = Readonly<Record<string, string | number | boolean | undefined>>;
 
 export function permittedRequest(operation: Operation, parameters: Parameters, query: Query, hostname?: string) {
+  if (!Object.hasOwn(operations, operation)) throw new InvestigationError('OPERATION_NOT_ALLOWED', 'Operação fora da política de leitura.');
   const definition = operations[operation];
-  if (!definition) throw new InvestigationError('OPERATION_NOT_ALLOWED', 'Operação fora da política de leitura.');
   const requiredNames = [...definition.path.matchAll(/\{(\w+)\}/g)].map(match => match[1]);
   for (const name of Object.keys(parameters)) {
     if (!requiredNames.includes(name)) throw new InvestigationError('INVALID_INPUT', 'Parâmetro de rota não permitido.');
   }
   const path = definition.path.replace(/\{(\w+)\}/g, (_match: string, name: string) => {
     const value = parameters[name];
-    const pattern = name === 'configIds' ? /^\d+(;\d+)*$/ : /^[A-Za-z0-9_-]{1,128}$/;
+    const pattern = name === 'configIds' ? /^[1-9]\d*(;[1-9]\d*){0,9}$/
+      : name === 'configId' || name === 'version' ? /^[1-9]\d*$/
+      : name === 'propertyId' ? /^(?:prp_)?[1-9]\d{0,19}$/ : /^[A-Za-z0-9_-]{1,128}$/;
     if (value === undefined || !pattern.test(String(value))) throw new InvestigationError('INVALID_INPUT', `Identificador inválido: ${name}.`);
     return encodeURIComponent(String(value));
   });

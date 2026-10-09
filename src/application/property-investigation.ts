@@ -1,7 +1,7 @@
 import type { Settings } from '../configuration/config.js';
 import { InvestigationError } from '../domain/errors.js';
 import { asArray, asObject, nestedItems, positiveVersion, selectFields, stringValue } from '../domain/json.js';
-import type { JsonObject, JsonValue } from '../domain/json.js';
+import type { JsonObject } from '../domain/json.js';
 import { jsonPointer, localPage } from '../domain/pagination.js';
 import type { Page } from '../domain/pagination.js';
 import { behaviorEvidence, compareJson } from '../domain/rules.js';

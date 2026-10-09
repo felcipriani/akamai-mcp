@@ -15,6 +15,7 @@ export function jsonPointer(value: JsonValue, pointer: string): JsonValue {
   if (!pointer.startsWith('/')) throw new InvestigationError('INVALID_INPUT', 'subtreePointer deve ser JSON Pointer.');
   let current: JsonValue | undefined = value;
   for (const part of pointer.slice(1).split('/')) {
+    if (/~(?:[^01]|$)/.test(part)) throw new InvestigationError('INVALID_INPUT', 'Escape JSON Pointer inválido.');
     const key = part.replace(/~1/g, '/').replace(/~0/g, '~');
     if (['__proto__', 'constructor', 'prototype'].includes(key)) throw new InvestigationError('INVALID_INPUT', 'JSON Pointer proibido.');
     if (Array.isArray(current)) current = /^(0|[1-9]\d*)$/.test(key) ? current[Number(key)] : undefined;

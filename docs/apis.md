@@ -1,6 +1,6 @@
 # Contratos oficiais utilizados
 
-Levantamento documental em 9/10/2026. Os paths abaixo não foram invocados contra contas Akamai. Os nomes internos em `read-policy.ts` vinculam cada consulta à política autorizada.
+Levantamento documental em 9/10/2026. Revisão da Fase 2 confirmou os contratos no commit oficial abaixo. GET /papi/v1/groups e GET /appsec/v1/configs foram tentados e retornaram 403; os demais paths autenticados foram validados localmente, não homologados na conta. TechDocs foi consultado com sucesso. Veja [validation.md](validation.md). Os nomes internos em `read-policy.ts` vinculam cada consulta à política autorizada.
 
 Base principal: especificações oficiais [PAPI v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/papi/v1/openapi.json), [AppSec v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/appsec/v1/openapi.json) e [SIEM v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/siem/v1/openapi.json). Placeholders `version` no código correspondem a `propertyVersion` e `versionNumber` nas respectivas APIs.
 

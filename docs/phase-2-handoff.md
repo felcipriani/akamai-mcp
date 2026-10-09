@@ -1,5 +1,7 @@
 # Passagem para a Fase 2
 
+> Documento histórico da Fase 1. Seu status e restrições referem-se àquela entrega; a Fase 2 foi autorizada e executada. Resultados atuais em [validation.md](validation.md).
+
 **Status: Fase 1 — Implementação concluída, ainda não testada ou validada.**
 
 Esta página prepara trabalho posterior. Não representa registro de testes feitos ou autorização para iniciar validação na execução atual.
