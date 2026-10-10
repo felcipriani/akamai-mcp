@@ -9,9 +9,14 @@ permissions:
   contents: read
   id-token: write
 
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -19,21 +24,59 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
-      - name: Verify stable release tag
+      - name: Verify release tag and lockfile metadata
+        id: release
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           node --input-type=module <<'JS'
-          import { readFileSync } from 'node:fs';
-          const { version } = JSON.parse(readFileSync('package.json', 'utf8'));
-          if (!/^\d+\.\d+\.\d+$/.test(version) || process.env.RELEASE_TAG !== `v${version}`) {
-            throw new Error('Tag must match the stable version in package.json');
+          import assert from 'node:assert/strict';
+          import { appendFileSync, readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const { name, version } = manifest;
+          assert.equal(process.versions.node.split('.')[0], '24', 'Use Node 24');
+          assert.equal(name, 'akamai-mcp');
+          assert.notEqual(manifest.private, true, 'Package must allow publication');
+          assert.equal(manifest.repository.url, 'git+https://github.com/felcipriani/akamai-mcp.git');
+          // Canonical SemVer without build metadata; numeric identifiers cannot have leading zeroes.
+          const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
+          assert.ok(match, 'Use a stable or prerelease SemVer version without build metadata');
+          const prerelease = match[4];
+          if (prerelease) {
+            assert.ok(prerelease.split('.').every(part => !/^\d+$/.test(part) || /^(0|[1-9]\d*)$/.test(part)),
+              'Numeric prerelease identifiers cannot have leading zeroes');
           }
+          assert.equal(process.env.RELEASE_TAG, `v${version}`, 'Tag must match package.json');
+          for (const metadata of [lock, lock.packages?.['']]) {
+            assert.equal(metadata?.name, name, 'Lockfile name must match package.json');
+            assert.equal(metadata?.version, version, 'Lockfile version must match package.json');
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `dist-tag=${prerelease ? 'next' : 'latest'}\n`);
           JS
       - name: Ensure npm supports trusted publishing
-        run: npm install --global npm@11
+        run: npm install --global npm@11.21.0
       - run: npm ci
       - run: npm run check
       - run: npm run smoke:package
+      - name: Ensure checks did not change package metadata
+        run: git diff --exit-code -- package.json package-lock.json
+      - name: Require an unpublished version
+        run: |
+          node --use-env-proxy --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          const { name, version } = JSON.parse(readFileSync('package.json', 'utf8'));
+          const response = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+            { signal: AbortSignal.timeout(30_000) });
+          if (response.status === 200) throw new Error(`${name}@${version} is already published; release a new version`);
+          assert.equal(response.status, 404, `Registry check failed: HTTP ${response.status}`);
+          const error = await response.json();
+          assert.ok(error === `version not found: ${version}` || typeof error?.error === 'string',
+            'Expected an npm registry not-found response');
+          console.log(`${name}@${version} is not published`);
+          JS
       - name: Publish through npm trusted publishing
-        run: npm publish --access public
+        env:
+          NPM_DIST_TAG: ${{ steps.release.outputs.dist-tag }}
+        run: npm publish --access public --tag "$NPM_DIST_TAG"
