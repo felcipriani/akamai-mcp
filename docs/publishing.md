@@ -1,6 +1,6 @@
 # Publicação npm e releases
 
-O pacote e o executável se chamam `akamai-mcp`. O manifesto permite publicação pública no registro npm e limita o pacote a `dist/`, documentação Markdown e `.env.example`; npm também inclui `package.json`, README e LICENSE. Código-fonte, testes, scripts, evidências históricas e credenciais locais ficam fora do pacote. As evidências históricas continuam disponíveis no [GitHub](https://github.com/felcipriani/akamai-mcp/tree/main/docs/evidence).
+O pacote e o executável se chamam `akamai-mcp`. O manifesto permite publicação pública no registro npm e limita o pacote a `dist/`, documentação Markdown e `.env.example`; npm também inclui `package.json`, README e LICENSE. Código-fonte, testes, scripts, evidências históricas e arquivos de credenciais ficam fora do pacote. As evidências históricas continuam disponíveis no [GitHub](https://github.com/felcipriani/akamai-mcp/tree/main/docs/evidence).
 
 O script `prepack` compila antes de `npm pack` e `npm publish`. Usuários recebem JavaScript pronto e somente dependências de produção; não precisam de TypeScript ou tsx. O executável exige Node 24 e usa stdio. Nome e versão anunciados pelo MCP e pelo User-Agent são lidos do manifesto, acompanhando cada release.
 

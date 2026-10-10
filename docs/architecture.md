@@ -1,7 +1,5 @@
 # Arquitetura implementada
 
-**Fase 2: validação local executada; homologação PAPI/AppSec/SIEM real pendente de acesso.** Veja [validation.md](validation.md).
-
 ## Organização e dependências
 
 ```text
@@ -24,9 +22,9 @@ src/
     errors.ts                      erros públicos estruturados
     results.ts                     evidência, inferência e indisponibilidade
     read-policy.ts                 catálogo fechado de operações permitidas
-    pagination.ts                  paginação local e JSON Pointer
+    pagination.ts                  paginação em memória e JSON Pointer
     rules.ts                       critérios ancestrais e comparação estrutural
-    siem.ts                        parsing NDJSON, facets e filtros locais
+    siem.ts                        parsing NDJSON, facets e filtragem de eventos
   infrastructure/
     edgegrid.ts                    signer EG1-HMAC-SHA256
     http.ts                        fetch, timeout, retry e limite de corpo
@@ -76,9 +74,9 @@ Diffs usam JSON Pointer, com ordenação estável de chaves de objetos e ordem o
 
 ## Paginação e limites
 
-Listas que não documentam paginação usam recorte local explícito. Properties sem escopo usam catálogo de grupos/contratos ordenado e um escopo por chamada; o cliente percorre `nextOffset` do escopo antes de `nextScopeOffset`. Listagens de versões PAPI/AppSec usam parâmetros documentados. Não se executam `nextLink` arbitrários.
+Listas que não documentam paginação usam paginação explícita em memória. Properties sem escopo usam catálogo de grupos/contratos ordenado e um escopo por chamada; o cliente percorre `nextOffset` do escopo antes de `nextScopeOffset`. Listagens de versões PAPI/AppSec usam parâmetros documentados. Não se executam `nextLink` arbitrários.
 
-SIEM lê uma página NDJSON inteira sob limite de bytes e exige contexto final consistente. Filtros locais não alteram a chamada Akamai. `resultOffset` pagina os eventos filtrados da página; somente depois de esgotar a página local se libera `nextOffset` de continuação. Releitura temporal/offset pode variar porque não há snapshot nem persistência. Não existe worker, timer de coleta ou histórico próprio.
+SIEM lê uma página NDJSON inteira sob limite de bytes e exige contexto final consistente. Os filtros são aplicados aos eventos recebidos e não alteram a chamada Akamai. `resultOffset` pagina os eventos filtrados da página; somente depois de esgotar os eventos filtrados da página se libera `nextOffset` de continuação. Releitura temporal/offset pode variar porque não há snapshot nem persistência. Não existe worker, timer de coleta ou histórico próprio.
 
 O transporte limita tempo por tentativa e investigação, número total de tentativas, bytes recebidos descomprimidos e bytes serializados enviados, além de concorrência por processo. Timeout cobre cabeçalhos e corpo. Cancelamento MCP propaga a `fetch`, esperas, travessia e paginação. Retry assina novamente, respeita Retry-After dentro da espera máxima e não tenta 401/403/404. Redirects são recusados, sem reenviar credenciais a outro destino.
 
@@ -88,7 +86,7 @@ O transporte limita tempo por tentativa e investigação, número total de tenta
 | --- | --- | --- | --- |
 | @modelcontextprotocol/server | 2.3.1 | Apache-2.0 | Protocolo e stdio |
 | zod | 4.2.0 | MIT | Schemas e configuração |
-| typescript | 5.9.3 | Apache-2.0 | Compilação validada |
+| typescript | 5.9.3 | Apache-2.0 | Compilação TypeScript |
 | tsx | 4.20.6 | MIT | Execução fonte e testes |
 | @types/node | 24.10.1 | MIT | Tipagem de Node |
 | @modelcontextprotocol/client | 2.3.1 | Apache-2.0 | Cliente gratuito de referência e testes |

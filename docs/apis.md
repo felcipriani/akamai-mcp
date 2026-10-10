@@ -1,6 +1,6 @@
 # Contratos oficiais utilizados
 
-Levantamento documental em 9/10/2026. Revisão da Fase 2 confirmou os contratos no commit oficial abaixo. GET /papi/v1/groups e GET /appsec/v1/configs foram tentados e retornaram 403; os demais paths autenticados foram validados localmente, não homologados na conta. TechDocs foi consultado com sucesso. Veja [validation.md](validation.md). Os nomes internos em `read-policy.ts` vinculam cada consulta à política autorizada.
+Os nomes internos em `read-policy.ts` vinculam cada consulta à política de operações permitidas.
 
 Base principal: especificações oficiais [PAPI v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/papi/v1/openapi.json), [AppSec v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/appsec/v1/openapi.json) e [SIEM v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/siem/v1/openapi.json). Placeholders `version` no código correspondem a `propertyVersion` e `versionNumber` nas respectivas APIs.
 
@@ -11,18 +11,18 @@ Prefixo `/papi/v1`; `PAPI-Use-Prefixes: true`; `accountSwitchKey` opcional, fixa
 | Método/path | Implementação e contrato |
 | --- | --- |
 | GET `/groups` | Descobre groupId e contractIds; pares ordenados para seleção de escopo |
-| GET `/properties?contractId=…&groupId=…` | Lista no escopo; resposta `properties.items`. Sem paginação remota nessa operação; paginação local |
+| GET `/properties?contractId=…&groupId=…` | Lista no escopo; resposta `properties.items`. Sem paginação remota nessa operação; paginação no servidor |
 | POST `/search/find-by-value` | Corpo exclusivamente `{hostname}`. Busca documentada, sem mutação. Resposta `versions.items` |
 | GET `/properties/{propertyId}` | `properties.items`, IDs e latestVersion/productionVersion/stagingVersion independentes |
 | GET `/properties/{propertyId}/versions?offset=…&limit=…` | Histórico de versões paginado pelo PAPI |
 | GET `/properties/{propertyId}/versions/{version}/rules?validateRules=false` | Árvore completa, ruleFormat e behaviors; sem solicitar validação de rules |
 | GET `/properties/{propertyId}/hostnames?hostname=…&network=…&offset=…&limit=…` | Associação ativa de hostname por ambiente, incluindo modelo de hostname bucket quando aplicável |
 | GET `/properties/{propertyId}/versions/{version}/hostnames?validateHostnames=false` | Operação interna autorizada para leitura de hostnames de uma versão, sem validação; não há ferramenta genérica para chamá-la |
-| GET `/properties/{propertyId}/activations` | Histórico de ativações, redes, versões e status; paginação e filtro locais |
+| GET `/properties/{propertyId}/activations` | Histórico de ativações, redes, versões e status; paginação e filtro aplicados pelo servidor |
 
 `contractId` e `groupId` são obrigatórios ao listar properties; nas rotas com propertyId podem ser opcionais quando o recurso pertence a um único escopo. O código aceita ambos para desambiguar.
 
-Também foi identificado GET `/properties/{propertyId}/versions/latest?activatedOn=PRODUCTION|STAGING`, mas a implementação lê os três campos da própria property para evitar três consultas e preservar sua relação no retorno. A comparação lê duas árvores `rules` e faz diff local; não chama bulk update, patch ou endpoint fictício de diff de rules.
+Também foi identificado GET `/properties/{propertyId}/versions/latest?activatedOn=PRODUCTION|STAGING`, mas a implementação lê os três campos da própria property para evitar três consultas e preservar sua relação no retorno. A comparação lê duas árvores `rules` e calcula o diff estrutural em memória; não chama bulk update, patch ou endpoint fictício de diff de rules.
 
 Origin, caching, TTL e headers são obtidos dos behaviors dentro da árvore. Behaviors disponíveis e schemas variam por produto/ruleFormat. A leitura não transforma todas as condições em um motor de execução. Critérios desconhecidos, ordenação, herança, includes e comportamentos externos permanecem relevantes. Fontes: [resumo PAPI](https://techdocs.akamai.com/property-mgr/reference/api-summary), [busca de properties](https://techdocs.akamai.com/property-mgr/reference/post-search-find-by-value), [consulta de property](https://techdocs.akamai.com/property-mgr/reference/get-property) e [rules](https://techdocs.akamai.com/property-mgr/reference/get-property-version-rules).
 
@@ -65,16 +65,16 @@ GET `/siem/v1/configs/{configIds}`. A API admite vários IDs separados por ponto
 | Ordenação | Armazenamento de logs, que pode diferir de httpMessage.start; eventos podem chegar atrasados |
 | Paginação | NDJSON: eventos por linha e última linha com offset/total e limit quando aplicável. O programa exige contexto final e total consistente |
 | Volume | API documenta até 600.000 logs por consulta, limit aproximado e possível retorno ligeiramente maior. Servidor restringe apiLimit a 5.000 e limita bytes |
-| Filtros | API não oferece filtros por IP, hostname, path, requestId, ação ou regra. O programa aplica esses filtros localmente à página |
+| Filtros | API não oferece filtros por IP, hostname, path, requestId, ação ou regra. O servidor aplica esses filtros aos eventos recebidos na página |
 | Frequência | Documento recomenda evitar mais de uma chamada por segundo. O servidor espaça todas as tentativas SIEM no processo e trata 429 com backoff |
 | Coleta | Requer integração e coleta habilitadas, política/configuração correta e papel Manage SIEM; não são habilitados pelo MCP |
 | Evidências | attackData: configId, policyId, clientIP, appliedAction e facets de regras. httpMessage: requestId, host, path, status, method, start e metadados de conexão |
 | Decodificação | URL decode preservando `+`, split por `;`, base64 por facet; relaciona regras pela posição e sinaliza comprimentos desiguais |
 | Conteúdo sensível | Não retorna headers, query, apiKey, ruleData ou ruleSelectors. Não persiste eventos |
 
-A documentação de onboarding solicita nível de acesso SIEM READ-WRITE, apesar de a operação de consulta ser GET. A política local permanece estritamente leitura; nenhuma ferramenta habilita coleta ou altera permissões. O administrador deve verificar essa particularidade com os controles corporativos e evitar conceder direitos adicionais a outras APIs. Consulte [get started SIEM](https://techdocs.akamai.com/siem-integration/reference/api-get-started).
+A documentação de onboarding solicita nível de acesso SIEM READ-WRITE, apesar de a operação de consulta ser GET. A política do servidor permanece estritamente de leitura; nenhuma ferramenta habilita coleta ou altera permissões. O administrador deve verificar essa particularidade com os controles corporativos e evitar conceder direitos adicionais a outras APIs. Consulte [get started SIEM](https://techdocs.akamai.com/siem-integration/reference/api-get-started).
 
-As respostas podem se tornar incompletas após a janela de streaming documentada de dois minutos. O timeout local padrão é menor e o limite de bytes aborta corpos grandes. Sem linha final o servidor retorna erro, sem liberar um offset enganoso. Reduza apiLimit e repita a consulta original. Não há coleta contínua para compensar retenção ou atraso.
+As respostas podem se tornar incompletas após a janela de streaming documentada de dois minutos. O timeout padrão do servidor é menor e o limite de bytes aborta corpos grandes. Sem linha final o servidor retorna erro, sem liberar um offset enganoso. Reduza apiLimit e repita a consulta original. Não há coleta contínua para compensar retenção ou atraso.
 
 Fontes: [fetch security events](https://techdocs.akamai.com/siem-integration/reference/get-config), [rate limits](https://techdocs.akamai.com/siem-integration/reference/rate-limits), [configuration rule data](https://techdocs.akamai.com/siem-integration/reference/configuration-rule), [SIEM API](https://techdocs.akamai.com/siem-integration/reference/api), [EdgeGrid e account switch](https://techdocs.akamai.com/developer/docs/edgegrid).
 

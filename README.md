@@ -1,10 +1,8 @@
 # Akamai MCP
 
-Servidor MCP local, TypeScript/Node.js, com **21 ferramentas exclusivamente de leitura** para CDN/Property Manager, Application Security, SIEM e documentação oficial. Não exige hospedagem, banco, serviços de IA ou infraestrutura paga.
+Servidor MCP em TypeScript/Node.js, com **21 ferramentas exclusivamente de leitura** para CDN/Property Manager, Application Security, SIEM e documentação oficial. Não exige hospedagem, banco, serviços de IA ou infraestrutura paga.
 
-**Status: VALIDADO LOCALMENTE.** Build, tipos, lint e testes locais aprovados. Consultas reais PAPI e AppSec retornaram HTTP 403; a homologação desses produtos e do SIEM permanece pendente. Busca e recuperação pública TechDocs foram executadas com sucesso, inclusive por MCP. Veja [o relatório](docs/validation.md).
-
-## Instalação e validação local
+## Instalação e verificação
 
 Requisitos: Node.js **24 LTS** e npm. Clone o repositório e, na pasta do projeto:
 
@@ -28,7 +26,7 @@ npx -y --prefer-online akamai-mcp@latest
 
 Node 24 deve estar no PATH do cliente. `-y` aceita a instalação sem pergunta interativa; `--prefer-online` força a consulta dos metadados no registro, mantendo o cache dos arquivos. `@latest` seleciona a versão publicada com essa tag. Atualizações entram ao iniciar/reconectar o servidor; um processo aberto continua executando sua versão atual. Para fixar uma versão, use `akamai-mcp@0.1.0`.
 
-Veja a [configuração do Kiro](docs/integration.md#kiro-com-npx) e o [guia de publicação e releases](docs/publishing.md). O código e o workflow estão preparados; isso não significa que o pacote já foi publicado ou que a GUI do Kiro foi homologada.
+Veja a [configuração do Kiro](docs/integration.md#kiro-com-npx) e o [guia de publicação e releases](docs/publishing.md).
 
 Para validar a distribuição antes de publicar:
 
@@ -40,14 +38,14 @@ Esse comando compila, gera um pacote temporário, verifica os arquivos incluído
 
 ## Configuração segura e consultas reais
 
-Use o mecanismo de variáveis secretas da organização ou configure um `.env` local protegido, não versionado:
+Use o mecanismo de variáveis secretas da organização ou configure um `.env` protegido, não versionado:
 
 ```sh
 cp .env.example .env
 chmod 600 .env
 ```
 
-Preencha localmente `AKAMAI_HOST`, `AKAMAI_CLIENT_TOKEN`, `AKAMAI_CLIENT_SECRET` e `AKAMAI_ACCESS_TOKEN`. Host deve ser somente o hostname sob `akamaiapis.net`, sem esquema, porta ou path. O programa não lê `.edgerc` nem carrega `.env` automaticamente; o Node fornece `--env-file`.
+Preencha `AKAMAI_HOST`, `AKAMAI_CLIENT_TOKEN`, `AKAMAI_CLIENT_SECRET` e `AKAMAI_ACCESS_TOKEN`. Host deve ser somente o hostname sob `akamaiapis.net`, sem esquema, porta ou path. O programa não lê `.edgerc` nem carrega `.env` automaticamente; o Node fornece `--env-file`.
 
 ```sh
 npm run build
@@ -65,7 +63,7 @@ npm run smoke:mcp -- --documentation
 npm run smoke:akamai
 ```
 
-O primeiro comando consulta uma página pública por MCP. O segundo realiza leituras reais limitadas de um escopo/property e uma configuração de segurança, seguindo apenas IDs efetivamente retornados. Não ativa, modifica ou habilita recursos. SIEM consulta no máximo 60 segundos e solicita 10 eventos apenas se estiver habilitado localmente e um configId acessível tiver sido descoberto. O script imprime status e contagens; respostas corporativas e segredos são omitidos. Código de saída 1 indica falha de alguma consulta real. Também pode carregar o `.env` com `node --use-env-proxy --env-file=.env scripts/akamai-smoke.mjs`.
+O primeiro comando consulta uma página pública por MCP. O segundo realiza leituras reais limitadas de um escopo/property e uma configuração de segurança, seguindo apenas IDs efetivamente retornados. Não ativa, modifica ou habilita recursos. SIEM consulta no máximo 60 segundos e solicita 10 eventos apenas se estiver habilitado no servidor e um configId acessível tiver sido descoberto. O script imprime status e contagens; respostas corporativas e segredos são omitidos. Código de saída 1 indica falha de alguma consulta real. Também pode carregar o `.env` com `node --use-env-proxy --env-file=.env scripts/akamai-smoke.mjs`.
 
 ## Catálogo e interpretação
 
@@ -73,7 +71,7 @@ O primeiro comando consulta uma página pública por MCP. O segundo realiza leit
 | --- | --- |
 | PAPI/CDN | Properties por hostname, versões latest/produção/staging, rules, origin/cache/TTL/headers, diferenças estruturais e ativações |
 | AppSec | Configurações e versões próprias, políticas, match targets, regras WAF, custom rules, rate policies e ativações |
-| SIEM | Uma página por consulta, filtros locais, requestId, ação final e facets decodificados, continuação explícita |
+| SIEM | Uma página por consulta, filtros aplicados pelo servidor, requestId, ação final e facets decodificados, continuação explícita |
 | Operação | Overview de hostname, evidências de HTTP 403 e alterações de configuração sem atribuição automática de causa |
 | TechDocs | Busca lexical em índices oficiais de três produtos e recuperação Markdown por identificador |
 
@@ -95,7 +93,7 @@ Não existe proxy HTTP arbitrário. Todas as operações são GET, exceto a busc
 | AKAMAI_MAX_REQUESTS_PER_TOOL | 30 incluindo tentativas |
 | AKAMAI_MAX_CONCURRENT_TOOLS | 4; excedentes recebem BUSY |
 
-SIEM espaça chamadas/tentativas em um segundo por processo. Corpos grandes geram `RESPONSE_TOO_LARGE`; diminua páginas/seções ou selecione subárvore. Subárvore local não reduz o download da árvore PAPI. Cancelamento MCP e SIGINT/SIGTERM interrompem operações pendentes. Não há cache histórico, retenção própria, coleta contínua ou motor de execução de rules.
+SIEM espaça chamadas/tentativas em um segundo por processo. Corpos grandes geram `RESPONSE_TOO_LARGE`; diminua páginas/seções ou selecione subárvore. A seleção de subárvore ocorre após o download e não reduz o volume recebido do PAPI. Cancelamento MCP e SIGINT/SIGTERM interrompem operações pendentes. Não há cache histórico, retenção própria, coleta contínua ou motor de execução de rules.
 
 ## Documentação
 
@@ -103,9 +101,9 @@ SIEM espaça chamadas/tentativas em um segundo por processo. Corpos grandes gera
 - [Catálogo e contratos das 21 ferramentas](docs/tools.md)
 - [Arquitetura](docs/architecture.md)
 - [Segurança](docs/security.md)
-- [Integração local gratuita](docs/integration.md)
+- [Integração com clientes MCP](docs/integration.md)
 - [Publicação npm e releases](docs/publishing.md)
 - [Contratos oficiais das APIs](docs/apis.md)
-- [Pesquisa histórica da Fase 1](docs/research.md)
+- [Pesquisa técnica e decisão](docs/research.md)
 
 Dependências e licença MIT do projeto estão no manifesto/lockfile. Ferramentas de teste e o cliente de referência são open source, sem modelo de IA obrigatório. Clientes de IA de terceiros podem ter custos próprios, independentes do servidor. As APIs continuam sujeitas às permissões e produtos do contrato Akamai existente.
