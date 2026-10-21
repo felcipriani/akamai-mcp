@@ -71,7 +71,7 @@ As variáveis devem estar disponíveis ao processo do Kiro e aprovadas para expa
 
 O PATH do cliente deve apontar para Node **24** e seu npm/npx. O shebang do executável usa `env node`; apontar apenas para um npx de outra instalação não garante Node 24. Aplicações gráficas podem não herdar o PATH configurado em shells/nvm. Para esse caso, configure o PATH do cliente ou use a execução com o caminho absoluto de Node 24.
 
-`-y` elimina a pergunta de instalação, que impediria uma sessão automática. `--prefer-online` solicita revalidação dos metadados no registro npm, sem desabilitar o cache dos arquivos. `@latest` seleciona a última versão dessa tag ao iniciar. Novas versões exigem publicação e reinício/reconexão do MCP; commits em `main` não atualizam um processo já aberto. Para execução com versão fixa, substitua por `akamai-mcp@0.1.0`.
+`-y` elimina a pergunta de instalação, que impediria uma sessão automática. `--prefer-online` solicita revalidação dos metadados no registro npm, sem desabilitar o cache dos arquivos. `@latest` seleciona a última versão dessa tag ao iniciar. Novas versões exigem publicação e reinício/reconexão do MCP; commits em `main` não atualizam um processo já aberto. Para execução com versão fixa, substitua por `akamai-mcp@1.0.0`.
 
 Se a organização utiliza proxy para APIs Akamai, configure `NODE_USE_ENV_PROXY=1` e as variáveis HTTP_PROXY/HTTPS_PROXY/NO_PROXY pelo ambiente do servidor; preserve a CA corporativa existente. O acesso npm pode exigir a configuração própria de proxy/CA do npm.
 

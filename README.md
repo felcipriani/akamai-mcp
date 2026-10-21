@@ -24,7 +24,7 @@ O pacote se chama `akamai-mcp` e inclui o executável compilado. Após a primeir
 npx -y --prefer-online akamai-mcp@latest
 ```
 
-Node 24 deve estar no PATH do cliente. `-y` aceita a instalação sem pergunta interativa; `--prefer-online` força a consulta dos metadados no registro, mantendo o cache dos arquivos. `@latest` seleciona a versão publicada com essa tag. Atualizações entram ao iniciar/reconectar o servidor; um processo aberto continua executando sua versão atual. Para fixar uma versão, use `akamai-mcp@0.1.0`.
+Node 24 deve estar no PATH do cliente. `-y` aceita a instalação sem pergunta interativa; `--prefer-online` força a consulta dos metadados no registro, mantendo o cache dos arquivos. `@latest` seleciona a versão publicada com essa tag. Atualizações entram ao iniciar/reconectar o servidor; um processo aberto continua executando sua versão atual. Para fixar uma versão, use `akamai-mcp@1.0.0`.
 
 Veja a [configuração do Kiro](docs/integration.md#kiro-com-npx) e o [guia de publicação e releases](docs/publishing.md).
 
