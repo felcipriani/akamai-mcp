@@ -1,109 +1,61 @@
-# Akamai MCP
+# Akamai MCP Server
 
-Servidor MCP em TypeScript/Node.js, com **21 ferramentas exclusivamente de leitura** para CDN/Property Manager, Application Security, SIEM e documentação oficial. Não exige hospedagem, banco, serviços de IA ou infraestrutura paga.
+Servidor [Model Context Protocol](https://modelcontextprotocol.io/) para investigar configurações de CDN, políticas de segurança e eventos WAF da Akamai a partir de clientes e agentes compatíveis com MCP.
 
-## Instalação e verificação
+Oferece **21 ferramentas de leitura**, com autenticação EdgeGrid e transporte stdio. As consultas utilizam Property Manager API, Application Security API, SIEM Integration API e Akamai TechDocs.
 
-Requisitos: Node.js **24 LTS** e npm. Clone o repositório e, na pasta do projeto:
+## Capacidades
 
-```sh
-npm ci
-npm run check
-npm run smoke:mcp
-```
-
-`check` executa TypeScript estrito (incluindo testes), ESLint, build e a suíte. Os testes não utilizam credenciais reais ou serviços externos: usam vetores oficiais, fixtures, HTTP em loopback e processos MCP reais. `smoke:mcp` inicia o servidor compilado pelo cliente SDK oficial gratuito, negocia MCP, lista as ferramentas e encerra o processo. Nenhuma API Akamai é consultada nesse comando.
-
-O servidor inicia **sem credenciais** para descoberta e documentação pública. Chamadas de APIs autenticadas nesse modo retornam `CONFIGURATION_ERROR`, sem requisições externas. Um conjunto parcial ou inválido de credenciais impede o startup, sem imprimir os valores.
-
-## Execução por npx e Kiro
-
-O pacote se chama `akamai-mcp` e inclui o executável compilado. Após a primeira publicação no npm:
-
-```sh
-npx -y --prefer-online akamai-mcp@latest
-```
-
-Node 24 deve estar no PATH do cliente. `-y` aceita a instalação sem pergunta interativa; `--prefer-online` força a consulta dos metadados no registro, mantendo o cache dos arquivos. `@latest` seleciona a versão publicada com essa tag. Atualizações entram ao iniciar/reconectar o servidor; um processo aberto continua executando sua versão atual. Para fixar uma versão, use `akamai-mcp@1.0.0`.
-
-Veja a [configuração do Kiro](docs/integration.md#kiro-com-npx) e o [guia de publicação e releases](docs/publishing.md).
-
-Para validar a distribuição antes de publicar:
-
-```sh
-npm run smoke:package
-```
-
-Esse comando compila, gera um pacote temporário, verifica os arquivos incluídos e executa o pacote com o CLI npx em uma pasta externa ao projeto. Valida os dois protocolos MCP e as 21 ferramentas sem credenciais ou consultas Akamai. A instalação das dependências de produção pode consultar o npm; o diretório temporário é removido ao terminar.
-
-## Configuração segura e consultas reais
-
-Use o mecanismo de variáveis secretas da organização ou configure um `.env` protegido, não versionado:
-
-```sh
-cp .env.example .env
-chmod 600 .env
-```
-
-Preencha `AKAMAI_HOST`, `AKAMAI_CLIENT_TOKEN`, `AKAMAI_CLIENT_SECRET` e `AKAMAI_ACCESS_TOKEN`. Host deve ser somente o hostname sob `akamaiapis.net`, sem esquema, porta ou path. O programa não lê `.edgerc` nem carrega `.env` automaticamente; o Node fornece `--env-file`.
-
-```sh
-npm run build
-node --use-env-proxy --env-file=.env dist/index.js
-```
-
-O processo aguarda mensagens MCP no stdin; silêncio no stdout é normal. Em um cliente MCP, configure Node e `dist/index.js` com caminhos absolutos conforme [integration.md](docs/integration.md). `--use-env-proxy` respeita HTTP_PROXY, HTTPS_PROXY e NO_PROXY no Node 24, mantendo a confiança TLS configurada.
-
-`AKAMAI_ACCOUNT_SWITCH_KEY` é fixado pelo operador. SIEM não aceita esse parâmetro: nesse caso, configure o conjunto completo `AKAMAI_SIEM_*` da conta de destino. SIEM fica desabilitado por padrão; habilite `AKAMAI_SIEM_ENABLED` somente se coleta, permissões e produto já estiverem disponíveis.
-
-Com credenciais já injetadas, execute opcionalmente:
-
-```sh
-npm run smoke:mcp -- --documentation
-npm run smoke:akamai
-```
-
-O primeiro comando consulta uma página pública por MCP. O segundo realiza leituras reais limitadas de um escopo/property e uma configuração de segurança, seguindo apenas IDs efetivamente retornados. Não ativa, modifica ou habilita recursos. SIEM consulta no máximo 60 segundos e solicita 10 eventos apenas se estiver habilitado no servidor e um configId acessível tiver sido descoberto. O script imprime status e contagens; respostas corporativas e segredos são omitidos. Código de saída 1 indica falha de alguma consulta real. Também pode carregar o `.env` com `node --use-env-proxy --env-file=.env scripts/akamai-smoke.mjs`.
-
-## Catálogo e interpretação
-
-| Área | Capacidades |
+| Área | O que o servidor permite consultar |
 | --- | --- |
-| PAPI/CDN | Properties por hostname, versões latest/produção/staging, rules, origin/cache/TTL/headers, diferenças estruturais e ativações |
-| AppSec | Configurações e versões próprias, políticas, match targets, regras WAF, custom rules, rate policies e ativações |
-| SIEM | Uma página por consulta, filtros aplicados pelo servidor, requestId, ação final e facets decodificados, continuação explícita |
-| Operação | Overview de hostname, evidências de HTTP 403 e alterações de configuração sem atribuição automática de causa |
-| TechDocs | Busca lexical em índices oficiais de três produtos e recuperação Markdown por identificador |
+| CDN e Property Manager | Properties por hostname, versões de produção e staging, árvores de regras, behaviors, diferenças entre versões e histórico de ativações |
+| Application Security | Configurações, políticas, match targets, ações WAF, custom rules e políticas de rate limiting |
+| Eventos WAF | Eventos SIEM por período ou cursor, filtros por requisição e correlação da ação final com regras de segurança |
+| Investigação | Visão de um hostname, evidências de respostas HTTP 403 e comparação de mudanças de configuração |
+| Documentação | Busca nos índices e leitura de páginas oficiais de Property Manager, Application Security e SIEM |
 
-Leia `evidence`, `inferences`, `unavailable`, `limitations` e `pagination` em conjunto. Última versão não significa versão ativa. Ausência de eventos não comprova ausência de bloqueio. Um 403 da API de gestão representa falha de acesso à consulta, sem atribuir um 403 da aplicação ao WAF ou à origem.
+O servidor consulta recursos existentes. Não cria versões, ativa configurações, altera políticas ou executa purge.
 
-Não existe proxy HTTP arbitrário. Todas as operações são GET, exceto a busca PAPI documentada por POST com corpo fechado `{hostname}`. Redirects são recusados. Logs mínimos seguem para stderr; stdout é reservado ao protocolo MCP.
+## Configuração
 
-## Limites padrão
+Requer **Node.js 24** disponível no ambiente do cliente MCP.
 
-| Variável | Padrão |
-| --- | --- |
-| AKAMAI_REQUEST_TIMEOUT_MS | 30000 por tentativa, incluindo corpo |
-| AKAMAI_TOOL_TIMEOUT_MS | 120000 por investigação |
-| AKAMAI_MAX_RETRIES | 2, para rede e HTTP 429/502/503/504 |
-| AKAMAI_MAX_RETRY_DELAY_MS | 10000; Retry-After maior retorna erro |
-| AKAMAI_MAX_RESPONSE_BYTES | 8388608 após descompressão |
-| AKAMAI_MAX_TOOL_BYTES | 131072 incluindo texto e structuredContent |
-| AKAMAI_MAX_RESULTS | 100 |
-| AKAMAI_MAX_REQUESTS_PER_TOOL | 30 incluindo tentativas |
-| AKAMAI_MAX_CONCURRENT_TOOLS | 4; excedentes recebem BUSY |
+```json
+{
+  "mcpServers": {
+    "akamai": {
+      "command": "npx",
+      "args": ["-y", "--prefer-online", "akamai-mcp@latest"]
+    }
+  }
+}
+```
 
-SIEM espaça chamadas/tentativas em um segundo por processo. Corpos grandes geram `RESPONSE_TOO_LARGE`; diminua páginas/seções ou selecione subárvore. A seleção de subárvore ocorre após o download e não reduz o volume recebido do PAPI. Cancelamento MCP e SIGINT/SIGTERM interrompem operações pendentes. Não há cache histórico, retenção própria, coleta contínua ou motor de execução de rules.
+Forneça ao processo as variáveis `AKAMAI_HOST`, `AKAMAI_CLIENT_TOKEN`, `AKAMAI_CLIENT_SECRET` e `AKAMAI_ACCESS_TOKEN` pelo mecanismo de ambiente do cliente. O acesso aos recursos depende das permissões do API client na Akamai.
 
-## Documentação
+Sem credenciais, a conexão MCP e as ferramentas de documentação pública continuam disponíveis. Consultas SIEM exigem `AKAMAI_SIEM_ENABLED=true` e coleta habilitada na Akamai. Consulte a [referência de configuração](docs/configuration.md) para credenciais, escopo de conta e execução a partir do código-fonte.
 
-- [Validação e evidências](docs/validation.md)
-- [Catálogo e contratos das 21 ferramentas](docs/tools.md)
-- [Arquitetura](docs/architecture.md)
-- [Segurança](docs/security.md)
-- [Integração com clientes MCP](docs/integration.md)
-- [Publicação npm e releases](docs/publishing.md)
-- [Contratos oficiais das APIs](docs/apis.md)
-- [Pesquisa técnica e decisão](docs/research.md)
+## Exemplos de investigação
 
-Dependências e licença MIT do projeto estão no manifesto/lockfile. Ferramentas de teste e o cliente de referência são open source, sem modelo de IA obrigatório. Clientes de IA de terceiros podem ter custos próprios, independentes do servidor. As APIs continuam sujeitas às permissões e produtos do contrato Akamai existente.
+- Identificar a property de um hostname e consultar as versões ativas em produção e staging.
+- Comparar duas versões da árvore de regras e localizar mudanças em origin, cache e headers.
+- Consultar ações WAF e rate policies associadas a uma política de segurança.
+- Correlacionar um request ID com eventos SIEM para verificar a ação final registrada.
+- Reunir diferenças e ativações de configuração no período de um incidente.
+
+## Resultados
+
+As ferramentas retornam dados estruturados com a fonte consultada, o recurso, a paginação e o status da operação. O contrato separa `evidence`, `inferences`, `unavailable` e `errors`, permitindo distinguir o que foi observado das interpretações e lacunas da consulta.
+
+Versões de CDN e segurança são independentes. Comparações são estruturais; o servidor não simula a execução das regras na borda. A investigação de HTTP 403 depende dos eventos disponíveis e não atribui automaticamente a resposta ao WAF ou à origem.
+
+## Referência
+
+- [Ferramentas e argumentos](docs/tools.md)
+- [Configuração](docs/configuration.md)
+- [Arquitetura e contrato de resposta](docs/architecture.md)
+- [Segurança e permissões](docs/security.md)
+- [APIs utilizadas](docs/apis.md)
+- [Desenvolvimento e publicação](https://github.com/felcipriani/akamai-mcp/blob/main/CONTRIBUTING.md)
+
+Projeto independente, sem afiliação com a Akamai. Licença [MIT](LICENSE).

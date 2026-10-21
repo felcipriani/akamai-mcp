@@ -1,7 +1,7 @@
 {
   "name": "akamai-mcp",
   "version": "1.0.0",
-  "description": "Local read-only Akamai investigation server over MCP stdio",
+  "description": "Read-only Akamai MCP server for CDN, application security and WAF investigations",
   "type": "module",
   "license": "MIT",
   "bin": {

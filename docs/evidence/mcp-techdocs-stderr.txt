@@ -1,3 +1,0 @@
-{"timestamp":"2026-10-09T22:56:47.425Z","event":"server_connected"}
-{"timestamp":"2026-10-09T22:56:47.542Z","event":"tool_started","tool":"get_akamai_documentation"}
-{"timestamp":"2026-10-09T22:56:50.153Z","event":"tool_completed","tool":"get_akamai_documentation","status":"success"}

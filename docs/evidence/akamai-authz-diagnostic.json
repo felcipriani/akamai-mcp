@@ -1,7 +1,0 @@
-{
-  "status": 403,
-  "contentType": "application/problem+json",
-  "type": "https://problems.luna.akamaiapis.net/-/pep-authz/deny",
-  "title": "Forbidden",
-  "proxyError": null
-}

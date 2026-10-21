@@ -1,100 +1,56 @@
-# Arquitetura implementada
+# Arquitetura
 
-## Organização e dependências
-
-```text
-src/
-  index.ts                         composição e serveStdio dual-era
-  configuration/config.ts          variáveis, credenciais e limites
-  mcp/schemas.ts                   schemas de entrada Zod
-  mcp/server.ts                    21 ferramentas e respostas MCP
-  application/
-    ports.ts                       contratos concretos de leitura API/documentos
-    context.ts                     orçamento e cancelamento por investigação
-    common.ts                      composição de evidências e falhas parciais
-    property-investigation.ts      casos de uso PAPI/CDN
-    security-investigation.ts      casos de uso Application Security
-    waf-investigation.ts           consulta SIEM e correlação de requestId
-    operational-investigation.ts   hostname, 403 e mudanças de configuração
-    documentation-investigation.ts busca lexical e recuperação documental
-  domain/
-    json.ts                        valores JSON e seleção de campos
-    errors.ts                      erros públicos estruturados
-    results.ts                     evidência, inferência e indisponibilidade
-    read-policy.ts                 catálogo fechado de operações permitidas
-    pagination.ts                  paginação em memória e JSON Pointer
-    rules.ts                       critérios ancestrais e comparação estrutural
-    siem.ts                        parsing NDJSON, facets e filtragem de eventos
-  infrastructure/
-    edgegrid.ts                    signer EG1-HMAC-SHA256
-    http.ts                        fetch, timeout, retry e limite de corpo
-    akamai-client.ts               política, assinatura e destinos fixos
-    documentation-source.ts        leitura pública de índices/páginas autorizados
-    redaction.ts                   mascaramento e logs mínimos em stderr
-```
-
-A entrada oficial serveStdio seleciona a era initialize/discover e cria uma instância por sessão. Probes descartáveis têm AbortController próprio, para não cancelar a sessão seguinte. O composition root cria um cliente Akamai compartilhado, casos de uso e fonte documental. As duas interfaces em `application/ports.ts` existem para inverter a dependência de transporte de integrações realmente distintas. Casos de uso dependem de leitura, e infraestrutura implementa esses contratos. Não há repositório de banco, container de DI, classes base ou framework interno.
-
-Configuration fornece objetos tipados e imutáveis por convenção. Domain contém regras puras de dados, política de operações e erros; não conhece MCP ou rede. Alguns limites e sinais são compartilhados entre camadas por necessidade de controle do processo. A estrutura aplica Clean Architecture pragmaticamente, com composição, coesão por API, tipos estritos, guard clauses e reutilização das investigações operacionais.
-
-## Fluxo
+O servidor conecta um cliente MCP às APIs de leitura da Akamai. O cliente inicia o processo e troca mensagens JSON-RPC por stdio; o servidor autentica as consultas com EdgeGrid e devolve resultados estruturados.
 
 ```mermaid
 flowchart LR
-    C[Cliente MCP com seu modelo] -->|stdio JSON-RPC| M[Registro MCP e schemas]
-    M --> A[Casos de uso investigativos]
-    A --> P[Portas de leitura]
-    P --> E[Política fechada + EdgeGrid + HTTP limitado]
-    P --> D[Fonte pública TechDocs]
+    C[Cliente MCP] -->|stdio| M[Ferramentas e schemas]
+    M --> A[Investigações]
+    A --> E[Política de leitura e EdgeGrid]
+    A --> D[Documentação pública]
     E --> K[PAPI / AppSec / SIEM]
-    D --> T[Índices llms.txt e páginas Markdown]
-    A --> R[Evidências, inferências e indisponibilidades]
-    R --> S[Sanitização e limite de saída]
+    D --> T[Akamai TechDocs]
+    A --> R[Evidências e interpretação]
+    R --> S[Sanitização da resposta]
     S --> M
 ```
 
-## Contrato de saída
+## Organização
 
-Cada ferramenta registra `outputSchema` e retorna o mesmo envelope em `structuredContent` e em texto JSON para clientes compatíveis. Campos: `schemaVersion`, `tool`, `timestamp`, `status`, `evidence`, `inferences`, `unavailable`, `limitations`, `errors` e `redaction`.
+| Diretório | Responsabilidade |
+| --- | --- |
+| `src/configuration` | Credenciais, opções de execução e metadados do pacote |
+| `src/mcp` | Registro das ferramentas, schemas de entrada e contrato de saída |
+| `src/application` | Consultas de properties, segurança, eventos, documentação e composição de investigações |
+| `src/domain` | Operações permitidas, paginação, diferenças estruturais, regras, eventos SIEM e erros |
+| `src/infrastructure` | HTTP, assinatura EdgeGrid, acesso às APIs, documentação e sanitização |
 
-- `evidence`: API/operação de origem, recurso, seletor/versão/período quando pertinente, data obtida, horário da leitura, paginação e limitações. Dados derivados por seleção ou decodificação continuam ligados à fonte; diffs são explicitamente marcados estruturais.
-- `inferences`: interpretação limitada, identificada como tal. Nunca contém diagnóstico gerado por modelo interno.
-- `unavailable`: componentes ausentes ou falhos, com motivo e erro. Não equivale a lista vazia confirmada.
-- `errors`: falha geral. Erros de uma composição que ainda obteve evidências aparecem em `unavailable` e `status=partial`.
+`src/index.ts` valida a configuração e inicia o transporte. O registro MCP utiliza o SDK TypeScript e os schemas utilizam Zod. A versão anunciada pelo servidor é lida de `package.json`.
 
-`isError` acompanha `status=error`. Sucesso parcial com alguma evidência permite ao cliente aproveitar os dados sem ocultar as falhas. Rejeições de schema são tratadas pelo SDK antes do caso de uso, podendo usar o formato padrão de erro MCP em vez do envelope. Erro geral ou orçamento excedido não preserva uma resposta parcial em memória; é necessário reduzir o escopo e repetir as operações menores.
+## Contrato de resposta
 
-## Decisões de versão e hierarquia
+As ferramentas retornam o mesmo envelope em `structuredContent` e em texto JSON. O envelope inclui `schemaVersion`, `tool`, `timestamp`, `status`, `evidence`, `inferences`, `unavailable`, `limitations`, `errors` e `redaction`.
 
-PAPI fornece `latestVersion`, `productionVersion` e `stagingVersion`. AppSec mantém suas próprias versões. O seletor padrão é PRODUCTION; LATEST precisa ser escolhido. Versão explícita prevalece e é identificada como `EXPLICIT_VERSION`, sem afirmar que esteja ativa no ambiente do seletor.
+| Campo | Significado |
+| --- | --- |
+| `evidence` | Dados ligados à fonte, operação e recurso consultados, com contexto e paginação |
+| `inferences` | Interpretações produzidas pelas regras da investigação, separadas dos dados da fonte |
+| `unavailable` | Componentes que não puderam ser consultados e seus motivos |
+| `limitations` | Restrições relevantes para interpretar o resultado |
+| `errors` | Falhas gerais da operação |
 
-Rules permanecem hierárquicas. A ferramenta de evidências de CDN apresenta cada behavior com todos os critérios ancestrais e sua ordem/pointer. Hostname/path não são usados para simular o motor Akamai. Não se computa origin, TTL ou cache efetivo por um algoritmo parcial que desconheça outros critérios. Includes, Advanced Metadata, EdgeWorkers e Cloudlets não são expandidos.
+`status` distingue `success`, `partial` e `error`. Uma consulta composta pode preservar evidências disponíveis e indicar as falhas em `unavailable`. `isError` acompanha `status=error`; entradas rejeitadas pelo SDK podem usar o erro padrão MCP.
 
-Diffs usam JSON Pointer, com ordenação estável de chaves de objetos e ordem original de arrays. A comparação não cria versões, jobs ou patches. Pode mostrar mudanças de metadados e deslocamentos de arrays; não é um diff semântico de execução. O limite de complexidade impede travessias excessivas. Comparações ocorrem antes da sanitização, que pode mascarar os valores diferentes de segredos.
+## Versões e regras
 
-## Paginação e limites
+PAPI mantém `latestVersion`, `productionVersion` e `stagingVersion`. Application Security possui sua própria sequência de versões. O seletor padrão é produção; versões explícitas identificam o conteúdo consultado sem comprovar ativação.
 
-Listas que não documentam paginação usam paginação explícita em memória. Properties sem escopo usam catálogo de grupos/contratos ordenado e um escopo por chamada; o cliente percorre `nextOffset` do escopo antes de `nextScopeOffset`. Listagens de versões PAPI/AppSec usam parâmetros documentados. Não se executam `nextLink` arbitrários.
+As árvores de regras preservam hierarquia, critérios ancestrais e JSON Pointers. Comparações ordenam chaves de objetos e preservam a ordem dos arrays. São diferenças estruturais, sujeitas a mudanças entre as leituras. O servidor não avalia regras na borda nem expande includes, Advanced Metadata, EdgeWorkers ou Cloudlets.
 
-SIEM lê uma página NDJSON inteira sob limite de bytes e exige contexto final consistente. Os filtros são aplicados aos eventos recebidos e não alteram a chamada Akamai. `resultOffset` pagina os eventos filtrados da página; somente depois de esgotar os eventos filtrados da página se libera `nextOffset` de continuação. Releitura temporal/offset pode variar porque não há snapshot nem persistência. Não existe worker, timer de coleta ou histórico próprio.
+## Consultas e ciclo de vida
 
-O transporte limita tempo por tentativa e investigação, número total de tentativas, bytes recebidos descomprimidos e bytes serializados enviados, além de concorrência por processo. Timeout cobre cabeçalhos e corpo. Cancelamento MCP propaga a `fetch`, esperas, travessia e paginação. Retry assina novamente, respeita Retry-After dentro da espera máxima e não tenta 401/403/404. Redirects são recusados, sem reenviar credenciais a outro destino.
+A paginação é explícita. As ferramentas usam os parâmetros das APIs ou recortes em memória, conforme a fonte. URLs de continuação não são executadas diretamente. SIEM lê uma página de eventos por chamada e aplica os filtros aos dados recebidos; o cliente percorre os cursores para ampliar a cobertura.
 
-## Dependências e custo
+O transporte controla tempo, tentativas, concorrência e volume de dados. Cada tentativa autenticada recebe uma nova assinatura. Cancelamento MCP e encerramento do processo interrompem requisições e esperas pendentes. Redirecionamentos são recusados.
 
-| Dependência direta | Versão | Licença | Uso |
-| --- | --- | --- | --- |
-| @modelcontextprotocol/server | 2.3.1 | Apache-2.0 | Protocolo e stdio |
-| zod | 4.2.0 | MIT | Schemas e configuração |
-| typescript | 5.9.3 | Apache-2.0 | Compilação TypeScript |
-| tsx | 4.20.6 | MIT | Execução fonte e testes |
-| @types/node | 24.10.1 | MIT | Tipagem de Node |
-| @modelcontextprotocol/client | 2.3.1 | Apache-2.0 | Cliente gratuito de referência e testes |
-| eslint | 10.12.0 | MIT | Análise estática |
-| typescript-eslint | 8.71.1 | MIT | Regras TypeScript |
-
-Manifesto MCP depende de `@modelcontextprotocol/core` 2.3.1 (Apache-2.0) e Zod ^4.2.0. Transitividades resolvidas incluem esbuild, get-tsconfig, resolve-pkg-maps, undici-types e fsevents opcional, com licença MIT nos manifestos lidos. `package-lock.json` fixa integridades e versões. Nenhum serviço adicional é obrigatório; APIs dependem do contrato existente. A documentação dessas versões está nas [releases oficiais MCP](https://github.com/modelcontextprotocol/typescript-sdk/releases), [manifesto npm MCP](https://registry.npmjs.org/@modelcontextprotocol/server/2.3.1) e nos manifestos das demais dependências.
-
-## Persistência, disponibilidade e escopo
-
-Não há persistência, cache histórico, socket de servidor HTTP, integração cloud ou leitura de credenciais por ferramentas. Recursos corporativos só são consultados a pedido do cliente. Sem credenciais, a sessão MCP e documentação pública funcionam; consultas autenticadas falham antes da rede. Configuração parcial é rejeitada. O transporte nativo Node 24 respeita proxy com --use-env-proxy, validado na consulta documental real; CA/TLS permanecem ativos. Testes usam as portas existentes e um preload exclusivo do processo filho para controlar HTTP, sem injeção de fixture no runtime operacional.
+O processo não mantém histórico de eventos ou coleta em segundo plano. Os resultados refletem o escopo e a disponibilidade das fontes no momento da consulta.
