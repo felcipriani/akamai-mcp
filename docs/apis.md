@@ -23,7 +23,7 @@ Prefixo `/papi/v1`; `PAPI-Use-Prefixes: true`; `accountSwitchKey` opcional, fixa
 
 Também foi identificado GET `/properties/{propertyId}/versions/latest?activatedOn=PRODUCTION|STAGING`, mas a implementação lê os três campos da própria property para evitar três consultas e preservar sua relação no retorno. A comparação lê duas árvores `rules` e calcula o diff estrutural em memória; não chama bulk update, patch ou endpoint fictício de diff de rules.
 
-Para identificar uma property, liste grupos e properties e confirme a associação do hostname por ambiente nas referências identificadas, conforme o [procedimento das ferramentas](tools.md#identificar-a-property-de-um-hostname). Todas as operações PAPI implementadas utilizam GET.
+`search_properties_by_domain` combina GET `/groups` e GET `/properties` em lotes e filtra nomes localmente. Não precisa do endpoint POST de pesquisa PAPI. Confirme o hostname e a versão ativa com GET `/properties/{propertyId}/hostnames` antes de atribuir regras CDN àquele hostname, conforme o [procedimento das ferramentas](tools.md#identificar-a-property-de-um-hostname). Todas as operações PAPI implementadas utilizam GET.
 
 Origin, caching, TTL e headers são obtidos dos behaviors dentro da árvore. Behaviors disponíveis e schemas variam por produto/ruleFormat. A leitura não transforma todas as condições em um motor de execução. Critérios desconhecidos, ordenação, herança, includes e comportamentos externos permanecem relevantes. Fontes: [resumo PAPI](https://techdocs.akamai.com/property-mgr/reference/api-summary), [consulta de property](https://techdocs.akamai.com/property-mgr/reference/get-property) e [rules](https://techdocs.akamai.com/property-mgr/reference/get-property-version-rules).
 

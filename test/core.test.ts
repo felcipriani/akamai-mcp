@@ -33,7 +33,7 @@ test('No credentials enables local MCP; partial or invalid credentials fail safe
 for (const value of ['https://example.com', '*.example.com', '-bad.example.com', 'example.com:443', '', 'a'.repeat(254), 'a'.repeat(64) + '.com']) test(`Hostname rejects ${value.slice(0, 35)}`, () => assert.equal(schemas.hostname.safeParse(value).success, false));
 test('Hostname IDNA and defaults', () => {
   assert.equal(schemas.hostname.parse('BÜCHER.Example.'), 'xn--bcher-kva.example');
-  assert.deepEqual(schemas.hostnameOverviewSchema.parse({ hostname: 'EXAMPLE.COM' }), { hostname: 'example.com', offset: 0, limit: 50, environment: 'PRODUCTION', properties: [], configIds: [] });
+  assert.deepEqual(schemas.hostnameOverviewSchema.parse({ hostname: 'EXAMPLE.COM', properties: [{ propertyId: 'prp_1' }] }), { hostname: 'example.com', offset: 0, limit: 50, environment: 'PRODUCTION', properties: [{ propertyId: 'prp_1' }], includeSecurity: false, configIds: [] });
 });
 for (const input of [{ propertyId: '../123' }, { propertyId: 'abc' }, { propertyId: 'prp_0' }, {}, { propertyId: 'prp_1', version: 0 }, { propertyId: 'prp_1', limit: 0 }, { propertyId: 'prp_1', limit: 501 }, { propertyId: 'prp_1', offset: -1 }, { propertyId: 'prp_1', url: 'https://evil.test' }]) test(`Property schema rejects ${JSON.stringify(input)}`, () => assert.equal(schemas.propertyCompareSchema.safeParse({ fromVersion: 1, toVersion: 2, ...input }).success, false));
 for (const configId of [0, -1, 1.2, '123', Number.MAX_SAFE_INTEGER + 1]) test(`Configuration id rejects ${configId}`, () => assert.equal(schemas.securityActiveSchema.safeParse({ configId }).success, false));

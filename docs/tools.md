@@ -1,6 +1,6 @@
 # Ferramentas MCP
 
-Catálogo de **17 ferramentas MCP**. Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
+Catálogo de **18 ferramentas MCP**. Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
 
 ## Convenções de argumentos
 
@@ -8,7 +8,7 @@ Catálogo de **17 ferramentas MCP**. Schemas efetivos estão em `src/mcp/schemas
 | --- | --- |
 | Paginação no servidor | `offset=0`, `limit=50` (1–500, limitado por AKAMAI_MAX_RESULTS). Percorra nextOffset, sem assumir que a primeira página é completa |
 | Referência property | `propertyId` obrigatório (inteiro positivo, prefixo `prp_` opcional); `contractId` e `groupId` opcionais para desambiguação |
-| Seleção property/segurança | `version` opcional; `environment=PRODUCTION`, podendo ser STAGING ou LATEST. version explícita prevalece e não comprova ativação |
+| Seleção property/segurança | `version` opcional; `environment=PRODUCTION`, podendo ser STAGING ou LATEST. version explícita prevalece e não comprova ativação. `explain_cdn_behavior` aceita apenas PRODUCTION/STAGING e exige a versão ativa confirmada |
 | Referência segurança | `configId` numérico positivo; `policyId` identifica política quando necessário |
 | Históricos | environment opcional PRODUCTION/STAGING; omitido retorna ambos na página de resultados |
 | Hostname | DNS sem URL, porta, path ou wildcard; normalização para minúsculas e IDNA |
@@ -20,28 +20,35 @@ Não se aceita host de API, método HTTP, path de API, header, credencial ou acc
 
 | Ferramenta | Argumentos | Responsabilidade/API | Limitações |
 | --- | --- | --- | --- |
+| `search_properties_by_domain` | domain, scopeOffset=0, maxScopes=20 (1–20), offset=0, limit=20 (1–50) | GET groups uma vez e GET properties em até maxScopes escopos; filtro literal de domínio nos nomes | Retorna candidatas NOT_CHECKED, fontes, cobertura e nextCursor. Não confirma hostname; nomes personalizados podem não corresponder. Limita o lote pelo orçamento de requisições |
 | `list_properties` | contractId+groupId opcionais juntos, scopeOffset=0, paginação no servidor | GET PAPI groups e properties. Sem par explícito, descobre escopos e lê um par selecionado | nextOffset pagina o par; nextScopeOffset avança o catálogo. Descoberta pode mudar entre chamadas |
 | `get_active_property_version` | referência property | GET PAPI property; latestVersion, productionVersion e stagingVersion | Sem fallback para latest se ambiente não ativo |
 | `list_property_versions` | referência property, offset, limit | GET PAPI versions com paginação remota | nextLink é evidência, nunca executado como URL pelo servidor. Use seus parâmetros documentados na próxima consulta |
 | `get_property_configuration` | seleção property, subtreePointer | GET PAPI rules, validateRules=false | Árvore, behaviors, origin/cache/TTL/headers e ruleFormat. Sem avaliação runtime; bytes da árvore completa continuam sujeitos ao teto HTTP |
 | `compare_property_versions` | referência property, fromVersion, toVersion, subtreePointer, paginação no servidor | Duas leituras PAPI rules e diff estrutural | Arrays ordenados, metadados/ruleFormat e versões editáveis podem afetar diff; sem snapshot atômico |
 | `get_property_activation_history` | referência property, environment opcional, paginação no servidor | GET PAPI activations | Inclui tentativas/status; submitDate não prova horário de conclusão |
-| `explain_cdn_behavior` | seleção property, hostname, path, behaviorNames=[], paginação no servidor | GET PAPI rules; behaviors com pointers e todos os critérios ancestrais | hostname/path são contexto. Não seleciona automaticamente regras por path, não calcula TTL nem origin efetivo |
-| `get_hostname_overview` | hostname, properties=[], environment PRODUCTION/STAGING, configIds=[], paginação no servidor | GET metadata e hostnames PAPI das referências informadas; catálogo/selected-hostnames/match-targets AppSec | Até 5 referências property por chamada, cada uma com propertyId e contractId/groupId opcionais. Sem properties, consulta apenas segurança. Até 5 configs; sem configIds usa catálogo inicial e productionHostnames para produção. Staging pode apresentar candidatos sem associação confirmada |
+| `explain_cdn_behavior` | referência property, environment PRODUCTION/STAGING, hostname, path, version opcional, behaviorNames=[], paginação no servidor | GET metadata e hostnames; apenas com associação confirmada, GET rules da versão ativa do hostname | NOT_MATCHED/UNKNOWN impedem a leitura de regras. version explícita deve coincidir com a versão confirmada. path é contexto: não simula critérios, TTL nem execução |
+| `get_hostname_overview` | hostname, properties=[], environment PRODUCTION/STAGING, includeSecurity=false, configIds=[], paginação no servidor | GET metadata e hostnames das referências; confirmação em inferences | Exige ao menos uma referência ou solicitação explícita de segurança. Até 5 referências por chamada. Por padrão consulta apenas CDN. AppSec exige includeSecurity=true ou configIds explícitos; nesse caso consulta até 5 configs. Sem referências, a associação CDN não é consultada |
 
 Origin, cache, TTL e headers estão na árvore e nos behaviors selecionados. O cliente deve interpretar critérios e ordem com documentação; essas ferramentas não respondem por um modelo interno.
 
 ### Identificar a property de um hostname
 
-O servidor envia este procedimento nas instruções da conexão MCP e nas descrições de `list_properties` e `get_hostname_overview`:
+O servidor envia este procedimento nas instruções da conexão MCP e nas descrições das ferramentas:
 
-1. Chame `list_properties` com `scopeOffset=0` e `offset=0`. Se já souber o contrato e o grupo, informe `contractId` e `groupId` juntos.
-2. Percorra `evidence[].pagination.nextOffset` no mesmo escopo. Ao terminar, avance para `nextScopeOffset`, reiniciando `offset=0`; sem contrato/grupo explícitos, a ferramenta descobre os escopos acessíveis.
-3. Preserve `propertyId`, `contractId` e `groupId`, obtendo o par de escopo em `evidence[].resource` quando necessário. Nomes de properties servem para priorizar candidatas; podem ser diferentes do hostname.
-4. Envie até cinco referências por chamada para `get_hostname_overview`, informando o hostname e o ambiente. Verifique `cnameFrom` e a versão do ambiente na evidência `propertyHostnames`. Sem referências, a ferramenta não consulta associações CDN.
-5. Com a associação confirmada, consulte `get_active_property_version` e `get_property_configuration` ou `explain_cdn_behavior` usando a mesma referência e ambiente. Para cache, examine os behaviors e seus critérios ancestrais e percorra as páginas retornadas.
+1. Chame `search_properties_by_domain` com o hostname completo em `domain`. Para uma família de nomes, informe o domínio pai. A ferramenta consulta lotes de grupos internamente e retorna apenas candidatas cujos nomes contêm o domínio literal, respeitando limites DNS e sufixos como `_dsa`.
+2. Preserve `domain` e `maxScopes` ao seguir `evidence[].pagination.nextCursor`, que contém `scopeOffset` e `offset`. O cursor termina as páginas de candidatas do lote antes de avançar para outros grupos. Erros ficam em `unavailable`; o resultado informa cobertura parcial.
+3. Envie até cinco referências candidatas (`propertyId`, `contractId`, `groupId`) para `get_hostname_overview`, com o hostname completo e o ambiente solicitado. Para CDN/cache, deixe `includeSecurity=false` e omita `configIds`.
+4. Leia `inferences[kind=hostname_association]`: **CONFIRMED** permite analisar as regras da versão retornada; **NOT_MATCHED** descarta a candidata neste ambiente e exige continuar o inventário; **UNKNOWN** indica fonte indisponível ou resposta incompleta. HTTP 200 com array vazio não indica falta de permissão. Não tente resgatar uma candidata de produção usando staging ou latest.
+5. Com uma associação confirmada, encerre a descoberta se o pedido for identificar uma property. Use `explain_cdn_behavior` com a mesma referência e ambiente; a ferramenta confirma novamente o vínculo antes de ler regras. Para uma árvore completa, use `get_property_configuration` com a versão confirmada. A confirmação já retorna metadados; não é necessário repetir `get_active_property_version`.
 
-Exemplo de argumentos para confirmar uma candidata identificada na listagem:
+Exemplo de busca:
+
+```json
+{ "domain": "api.example.com" }
+```
+
+Exemplo de confirmação de candidata:
 
 ```json
 {
@@ -51,7 +58,11 @@ Exemplo de argumentos para confirmar uma candidata identificada na listagem:
 }
 ```
 
-Para concluir ausência no inventário acessível, percorra todos os escopos e páginas e confirme o hostname nas properties, inclusive nas que têm nomes diferentes. Falhas de permissão ou consultas interrompidas deixam a cobertura parcial. `latestVersion` não substitui a versão ativa de produção ou staging; regras configuradas não comprovam HIT/MISS em execução. O cliente MCP precisa disponibilizar as instruções do servidor ao agente para que elas orientem seu planejamento.
+Se o filtro de nomes não encontrar uma associação, use `list_properties` para incluir properties com nomes diferentes: percorra `nextOffset` no mesmo escopo e `nextScopeOffset` com `offset=0`. Se conhecer contrato/grupo, informe ambos. Não conclua ausência do hostname apenas pela busca de nomes. Para listar todas as associações, percorra todo o inventário acessível e confirme as referências; falhas deixam a cobertura parcial.
+
+O filtro não recebe expressões regulares livres. O servidor escapa o domínio e compara nomes como `example.com_dsa` e `api.example.com_dsa`, excluindo `badexample.com` e `example.com.evil`. `associationStatus=NOT_CHECKED` é uma candidata, sem prova de associação. `inventoryComplete` descreve a varredura dos nomes nesta chamada, não a cobertura de hostnames de properties com outros nomes.
+
+`get_property_configuration` lê rules, não hostnames. AppSec também não comprova associação CDN. `latestVersion` não substitui a versão ativa; regras configuradas não comprovam HIT/MISS em execução. O cliente MCP precisa disponibilizar as instruções do servidor ao agente.
 
 ## Application Security e WAF
 

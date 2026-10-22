@@ -27,7 +27,7 @@ test('Real stdio handshake/list/call/shutdown without Akamai credentials', async
   assert.ok(session.client.getServerCapabilities()?.tools);
   assert.match(session.client.getInstructions() ?? '', /list_properties.*nextOffset.*nextScopeOffset/);
   assert.match(session.client.getInstructions() ?? '', /get_hostname_overview/);
-  const list = await session.client.listTools(); assert.equal(list.tools.length, 17);
+  const list = await session.client.listTools(); assert.equal(list.tools.length, 18);
   const reply = await session.client.callTool({ name: 'get_active_property_version', arguments: { propertyId: 'prp_123' } });
   assert.equal(reply.isError, true);
   assert.equal(asObject(toJson(reply.structuredContent)).status, 'error');
@@ -43,17 +43,17 @@ test('Modern MCP 2026-07-28 negotiation supports discovery and calls', async t =
   assert.equal(session.client.getNegotiatedProtocolVersion(), '2026-07-28');
   assert.equal(session.client.getProtocolEra(), 'modern');
   assert.match(session.client.getInstructions() ?? '', /get_hostname_overview/);
-  assert.equal((await session.client.listTools()).tools.length, 17);
+  assert.equal((await session.client.listTools()).tools.length, 18);
   const reply = await session.client.callTool({ name: 'get_active_property_version', arguments: { propertyId: 'prp_123' } });
   assert.equal(reply.isError, true);
   assert.deepEqual(session.errors, []);
 });
-test('All 17 tools execute over real MCP stdio with controlled upstream fixtures', async t => {
+test('All 18 tools execute over real MCP stdio with controlled upstream fixtures', async t => {
   const session = await connect(true); t.after(() => session.client.close());
   const ref = { propertyId: 'prp_123' };
   const security = { configId: 14227, policyId: 'policy_1' };
   const calls: Record<string, Record<string, unknown>> = {
-    list_properties: {}, get_active_property_version: ref,
+    search_properties_by_domain: { domain: 'example.com' }, list_properties: {}, get_active_property_version: ref,
     list_property_versions: ref, get_property_configuration: ref,
     compare_property_versions: { ...ref, fromVersion: 1, toVersion: 2 }, get_property_activation_history: ref,
     explain_cdn_behavior: { ...ref, hostname: 'example.com', path: '/' }, get_hostname_overview: { hostname: 'example.com', properties: [ref], configIds: [14227] },
@@ -105,6 +105,45 @@ test('MCP inventory, hostname confirmation and active cache rules work using onl
   assert.equal(asObject(rules.resource).version, 2);
   assert.ok(asArray(asObject(asObject(rules.data).rules).behaviors).map(asObject).some(item => item.name === 'caching'));
 });
+test('MCP domain discovery reaches a later group in one call, confirms CDN without AppSec, then reads cache', async t => {
+  const session = await connect(true, { FIXTURE_DISCOVERY_SCENARIO: 'true', AKAMAI_MAX_TOOL_BYTES: '8192' });
+  t.after(() => session.client.close());
+  const search = await session.client.callTool({ name: 'search_properties_by_domain', arguments: { domain: 'api-external.example.com' } });
+  assert.equal(search.isError, false);
+  const searched = asObject(asArray(asObject(toJson(search.structuredContent)).evidence)[0]);
+  const candidates = asArray(asObject(searched.data).candidates).map(asObject);
+  assert.equal(candidates.length, 1);
+  assert.equal(candidates[0]?.propertyId, 'prp_123');
+  assert.equal(candidates[0]?.groupId, 'grp_3');
+  assert.equal(candidates[0]?.associationStatus, 'NOT_CHECKED');
+  const ref = { propertyId: 'prp_123', contractId: 'ctr_1', groupId: 'grp_3' };
+  const overview = await session.client.callTool({ name: 'get_hostname_overview', arguments: { hostname: 'api-external.example.com', properties: [ref] } });
+  assert.equal(overview.isError, false);
+  const checked = asObject(toJson(overview.structuredContent));
+  assert.equal(asObject(asArray(checked.inferences)[0]).associationStatus, 'CONFIRMED');
+  assert.ok(asArray(checked.evidence).map(asObject).every(item => item.api === 'PAPI'));
+  const cache = await session.client.callTool({ name: 'explain_cdn_behavior', arguments: { ...ref, hostname: 'api-external.example.com', path: '/', behaviorNames: ['caching'] } });
+  assert.equal(cache.isError, false);
+  assert.ok(asArray(asObject(toJson(cache.structuredContent)).evidence).map(asObject).some(item => item.operation === 'propertyRules'));
+});
+test('MCP rejects the similar candidate and continues the search cursor before reading cache', async t => {
+  const session = await connect(true, { FIXTURE_DISCOVERY_SCENARIO: 'true' });
+  t.after(() => session.client.close());
+  const query = { domain: 'example.com', maxScopes: 1 };
+  const first = await session.client.callTool({ name: 'search_properties_by_domain', arguments: query });
+  const firstPage = asObject(asArray(asObject(toJson(first.structuredContent)).evidence)[0]);
+  const wrong = { propertyId: 'prp_111', contractId: 'ctr_1', groupId: 'grp_1' };
+  const overview = await session.client.callTool({ name: 'get_hostname_overview', arguments: { hostname: 'api-external.example.com', properties: [wrong] } });
+  assert.equal(asObject(asArray(asObject(toJson(overview.structuredContent)).inferences)[0]).associationStatus, 'NOT_MATCHED');
+  const blocked = await session.client.callTool({ name: 'explain_cdn_behavior', arguments: { ...wrong, hostname: 'api-external.example.com', path: '/' } });
+  assert.equal(asObject(asArray(asObject(toJson(blocked.structuredContent)).inferences)[0]).associationStatus, 'NOT_MATCHED');
+  assert.ok(asArray(asObject(toJson(blocked.structuredContent)).evidence).map(asObject).every(item => item.operation !== 'propertyRules'));
+  const next = await session.client.callTool({ name: 'search_properties_by_domain', arguments: { ...query, ...asObject(asObject(firstPage.pagination).nextCursor) } });
+  const emptyPage = asObject(asArray(asObject(toJson(next.structuredContent)).evidence)[0]);
+  const last = await session.client.callTool({ name: 'search_properties_by_domain', arguments: { ...query, ...asObject(asObject(emptyPage.pagination).nextCursor) } });
+  const finalPage = asObject(asArray(asObject(toJson(last.structuredContent)).evidence)[0]);
+  assert.equal(asObject(asArray(asObject(finalPage.data).candidates)[0]).propertyId, 'prp_123');
+});
 test('MCP rejects invalid arguments and unknown tools, then remains responsive', async t => {
   const session = await connect(false); t.after(() => session.client.close());
   for (const request of [
@@ -112,6 +151,7 @@ test('MCP rejects invalid arguments and unknown tools, then remains responsive',
     { name: 'get_active_security_configuration', arguments: { configId: 0 } },
     { name: 'purge_cache', arguments: {} },
     { name: 'find_property_by_hostname', arguments: { hostname: 'example.com' } },
+    { name: 'get_hostname_overview', arguments: { hostname: 'example.com' } },
     { name: 'get_hostname_overview', arguments: { hostname: 'example.com', properties: Array.from({ length: 6 }, () => ({ propertyId: 'prp_123' })) } },
     { name: 'get_waf_events', arguments: { configIds: [14227], offset: 'fixture-offset' } },
     { name: 'investigate_waf_request', arguments: { configIds: [14227], offset: 'fixture-offset', requestId: 'request-1' } },
@@ -121,7 +161,7 @@ test('MCP rejects invalid arguments and unknown tools, then remains responsive',
     try { const reply = await session.client.callTool(request); failed = reply.isError === true; } catch { failed = true; }
     assert.ok(failed);
   }
-  assert.equal((await session.client.listTools()).tools.length, 17);
+  assert.equal((await session.client.listTools()).tools.length, 18);
 });
 test('MCP bounds concurrent calls and response bytes', async t => {
   const session = await connect(true, { AKAMAI_MAX_CONCURRENT_TOOLS: '1', FIXTURE_DELAY_MS: '100', AKAMAI_MAX_TOOL_BYTES: '8192', FIXTURE_LARGE_DOC: 'true' });

@@ -18,13 +18,19 @@ const path = z.string().min(1).max(2048).regex(/^\/[^\u0000-\u001f?#]*$/);
 export const propertyListSchema = z.object({
   ...page, contractId: identifier.optional(), groupId: identifier.optional(), scopeOffset: z.number().int().min(0).max(100000).default(0),
 }).strict();
+export const propertyDomainSearchSchema = z.object({
+  domain: hostname.describe('Domínio ou hostname completo; comparação literal nos nomes, sem URL ou expressão regular.'),
+  scopeOffset: z.number().int().min(0).max(100000).default(0),
+  maxScopes: z.number().int().min(1).max(20).default(20),
+  offset: page.offset, limit: z.number().int().min(1).max(50).default(20),
+}).strict();
 export const propertyActiveSchema = z.object(propertyRef).strict();
 export const propertyConfigurationSchema = z.object({ ...propertySelection, subtreePointer }).strict();
 export const propertyCompareFields = { ...propertyRef, fromVersion: version, toVersion: version, subtreePointer };
 export const propertyCompareSchema = z.object({ ...propertyCompareFields, ...page }).strict();
 export const propertyHistorySchema = z.object({ ...propertyRef, ...page, environment: z.enum(['PRODUCTION', 'STAGING']).optional() }).strict();
-export const propertyExplainSchema = z.object({ ...propertySelection, ...page, hostname, path, behaviorNames: z.array(z.string().min(1).max(100)).max(20).default([]) }).strict();
-export const hostnameOverviewSchema = z.object({ hostname, ...page, environment: z.enum(['PRODUCTION', 'STAGING']).default('PRODUCTION'), properties: z.array(z.object(propertyRef).strict()).max(5).default([]), configIds: z.array(configId).max(10).default([]) }).strict();
+export const propertyExplainSchema = z.object({ ...propertySelection, environment: z.enum(['PRODUCTION', 'STAGING']).default('PRODUCTION'), ...page, hostname, path, behaviorNames: z.array(z.string().min(1).max(100)).max(20).default([]) }).strict();
+export const hostnameOverviewSchema = z.object({ hostname, ...page, environment: z.enum(['PRODUCTION', 'STAGING']).default('PRODUCTION'), properties: z.array(z.object(propertyRef).strict()).max(5).default([]), includeSecurity: z.boolean().default(false).describe('Habilita a descoberta de segurança AppSec; deixe false para investigar apenas CDN/cache.'), configIds: z.array(configId).max(10).default([]) }).strict().refine(input => input.properties.length > 0 || input.includeSecurity || input.configIds.length > 0, 'Informe properties para confirmar CDN, ou solicite segurança explicitamente com includeSecurity/configIds.');
 export const securityListSchema = z.object(page).strict();
 export const securityActiveSchema = z.object({ configId }).strict();
 export const securityVersionsSchema = z.object({ configId, page: z.number().int().min(1).max(100000).default(1), pageSize: z.number().int().min(1).max(500).default(25) }).strict();

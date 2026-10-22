@@ -12,12 +12,21 @@ globalThis.fetch = async (input, init) => {
     : process.env.FIXTURE_LARGE_DOC ? 'x'.repeat(20000) : '# Rules\nDocumented rules and caching.');
   if (init?.method !== 'GET') throw new Error('Fixture allows only GET');
   const path = url.pathname;
+  if (process.env.FIXTURE_DISCOVERY_SCENARIO) {
+    if (path.startsWith('/appsec/')) throw new Error('CDN discovery must not access AppSec');
+    if (path.endsWith('/rules') && path.includes('/prp_111/')) throw new Error('Unconfirmed candidate rules must not be read');
+    if (path === '/papi/v1/groups') return Response.json({ groups: { items: [1, 2, 3].map(id => ({ groupId: `grp_${id}`, contractIds: ['ctr_1'] })) } });
+    if (path === '/papi/v1/properties') return Response.json({ properties: { items: url.searchParams.get('groupId') === 'grp_1'
+      ? [{ propertyId: 'prp_111', propertyName: 'api.example.com_dsa' }] : url.searchParams.get('groupId') === 'grp_3'
+        ? [{ propertyId: 'prp_123', propertyName: 'api-external.example.com_dsa' }] : [] } });
+    if (path.endsWith('/hostnames')) return Response.json({ hostnames: { items: path.includes('/prp_111/') ? [] : [{ cnameFrom: 'api-external.example.com', productionVersion: 2 }] } });
+  }
   let data = {};
   if (path === '/papi/v1/groups') data = { groups: { items: [{ groupId: 'grp_1', contractIds: ['ctr_1'] }] } };
   else if (path === '/papi/v1/properties' || /^\/papi\/v1\/properties\/prp_\d+$/.test(path)) data = { properties: { items: [{ propertyId: 'prp_123', propertyName: 'fixture', latestVersion: 3, productionVersion: 2, stagingVersion: 3 }] } };
   else if (path.endsWith('/rules') && path.startsWith('/papi/')) data = { ruleFormat: 'latest', rules: { name: 'default', criteria: [], behaviors: [{ name: 'origin', options: { hostname: 'origin.example.com', apiKey: 'should-be-redacted' } }, { name: 'caching', options: { ttl: path.includes('/1/') ? 30 : 60 } }], children: [] } };
   else if (path.endsWith('/versions') && path.startsWith('/papi/')) data = { versions: { items: [{ propertyVersion: 1 }, { propertyVersion: 2 }] } };
-  else if (path.endsWith('/hostnames')) data = { hostnames: { items: [{ cnameFrom: 'example.com', productionVersion: 2 }] } };
+  else if (path.endsWith('/hostnames')) data = { hostnames: { items: [{ cnameFrom: 'example.com', productionVersion: 2, stagingVersion: 3 }] } };
   else if (path.endsWith('/activations') && path.startsWith('/papi/')) data = { activations: { items: [{ propertyVersion: 2, network: 'PRODUCTION', status: 'ACTIVE', submitDate: '2026-10-09T12:00:00Z' }] } };
   else if (path === '/appsec/v1/configs') data = { configurations: [{ id: 14227, name: 'fixture', productionVersion: 10, productionHostnames: ['example.com'] }] };
   else if (/^\/appsec\/v1\/configs\/\d+$/.test(path)) data = { id: 14227, latestVersion: 12, productionVersion: 10, stagingVersion: 11, productionHostnames: ['example.com'] };

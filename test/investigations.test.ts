@@ -86,7 +86,7 @@ test('Hostname overview verifies only supplied property references and the reque
   assert.ok(calls.every(call => call.parameters.propertyId === ref.propertyId && call.query.contractId === ref.contractId && call.query.groupId === ref.groupId));
   assert.equal(calls[1]?.query.network, 'STAGING');
   assert.equal(calls[1]?.query.hostname, 'example.com');
-  assert.equal(result.inferences.length, 0);
+  assert.equal(result.inferences[0]?.associationStatus, 'NOT_MATCHED');
   assert.deepEqual(asObject(result.evidence[1]?.data).hostnames, { items: [] });
 });
 test('Document catalog ranking, partial index failure and character paging', async () => {
@@ -111,7 +111,7 @@ test('Hostname discovery normalizes production associations before reading secur
     if (call.operation === 'securityMatchTargets') return { matchTargets: [] };
     throw new Error('Unexpected operation');
   });
-  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', properties: [], configIds: [], ...page }, context());
+  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', properties: [], includeSecurity: true, configIds: [], ...page }, context());
   assert.equal(result.status, 'success');
   assert.ok(reader.calls.every(call => call.operation.startsWith('security')));
   assert.ok(result.limitations.some(text => text.includes('Nenhuma property informada')));

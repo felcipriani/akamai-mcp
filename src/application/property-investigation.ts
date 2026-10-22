@@ -1,5 +1,6 @@
 import type { Settings } from '../configuration/config.js';
 import { InvestigationError } from '../domain/errors.js';
+import { normalizedHostname } from '../domain/hostname.js';
 import { asArray, asObject, nestedItems, positiveVersion, selectFields, stringValue } from '../domain/json.js';
 import type { JsonObject } from '../domain/json.js';
 import { jsonPointer, localPage } from '../domain/pagination.js';
@@ -80,8 +81,8 @@ export class PropertyInvestigation {
     return { version, metadata };
   }
 
-  async rules(ref: PropertySelection, context: InvestigationContext) {
-    const selected = await this.resolveVersion(ref, context);
+  async rules(ref: PropertySelection, context: InvestigationContext, confirmed?: { version: number; metadata: InvestigationResult }) {
+    const selected = confirmed ?? await this.resolveVersion(ref, context);
     const reply = await this.reader.read('propertyRules', { propertyId: ref.propertyId, version: selected.version }, this.scopeQuery(ref), context);
     const data = asObject(reply.data);
     if (!data['rules']) throw new InvestigationError('INVALID_RESPONSE', 'PAPI não retornou a árvore rules.');
@@ -141,19 +142,57 @@ export class PropertyInvestigation {
   }
 
   async explain(ref: PropertySelection & Page & { hostname: string; path: string; behaviorNames: string[] }, context: InvestigationContext): Promise<InvestigationResult> {
-    const configured = await this.rules(ref, context);
+    if (ref.environment === 'LATEST') throw new InvestigationError('INVALID_INPUT', 'Informe PRODUCTION ou STAGING para investigar um hostname. Para inspeção de versão inativa, use get_property_configuration.');
+    const association = await this.hostnameAssociation({ ...ref, environment: ref.environment }, context);
+    const confirmation = association.inferences[0];
+    if (confirmation?.['associationStatus'] !== 'CONFIRMED') {
+      association.status = 'partial';
+      association.limitations.push('Regras de cache não consultadas: a associação do hostname à property no ambiente solicitado não foi confirmada. Continue o inventário quando NOT_MATCHED; resolva a indisponibilidade quando UNKNOWN.');
+      return association;
+    }
+    const activeVersion = positiveVersion(confirmation['version']);
+    if (activeVersion === null || (ref.version !== undefined && ref.version !== activeVersion)) {
+      throw new InvestigationError('INVALID_INPUT', 'A versão solicitada difere da versão ativa confirmada para este hostname. Para inspeção histórica, use get_property_configuration.');
+    }
+    const configured = await this.rules(ref, context, { version: activeVersion, metadata: association });
     const behaviors = behaviorEvidence(configured.rules, ref.behaviorNames, () => context.checkpoint());
     const page = localPage(behaviors, ref, this.settings.maxResults);
-    const item = apiEvidence(configured.reply, { ...this.resource(ref, configured.version), hostname: ref.hostname, path: ref.path }, page.items);
+    const item = apiEvidence(configured.reply, { ...this.resource(ref, configured.version), hostname: ref.hostname, path: ref.path, associationStatus: 'CONFIRMED' }, page.items);
     item.pagination = page.pagination;
-    return result([...configured.metadata.evidence, item], ['Evidências de behaviors com todos os critérios ancestrais. hostname/path são contexto, sem avaliação automática de critérios ou cálculo de TTL efetivo.', 'O cliente MCP deve interpretar ordem, critérios desconhecidos, includes e behaviors externos com documentação oficial.']);
+    return { ...result([...association.evidence, item], ['Associação do hostname confirmada no ambiente solicitado. path é contexto, sem avaliação automática de critérios ou cálculo de TTL efetivo.', 'Evidências de behaviors com todos os critérios ancestrais. O cliente MCP deve interpretar ordem, critérios desconhecidos, includes e behaviors externos com documentação oficial.']), inferences: association.inferences };
   }
 
   async hostnameAssociation(ref: PropertyRef & { hostname: string; environment: 'PRODUCTION' | 'STAGING' }, context: InvestigationContext): Promise<InvestigationResult> {
+    const metadata = await this.active(ref, context);
     const reply = await this.reader.read('propertyHostnames', { propertyId: ref.propertyId }, {
       ...this.scopeQuery(ref), hostname: ref.hostname, network: ref.environment, offset: 0, limit: 10,
     }, context);
-    return result([apiEvidence(reply, { propertyId: ref.propertyId, hostname: ref.hostname, environment: ref.environment }, reply.data)]);
+    const hosts = nestedItems(reply.data, 'hostnames').map(asObject);
+    if (hosts.some(item => typeof item['cnameFrom'] !== 'string')) throw new InvestigationError('INVALID_RESPONSE', 'Hostname sem cnameFrom na resposta PAPI.');
+    const matches = hosts.filter(item => typeof item['cnameFrom'] === 'string' && normalizedHostname(item['cnameFrom']) === ref.hostname);
+    const versionKey = ref.environment === 'PRODUCTION' ? 'productionVersion' : 'stagingVersion';
+    const networkPrefix = ref.environment === 'PRODUCTION' ? 'production' : 'staging';
+    const metadataVersion = positiveVersion(asObject(metadata.evidence[0]?.data)[versionKey]);
+    const versions = [...new Set(matches.map(item => {
+      if (Object.hasOwn(item, versionKey)) return positiveVersion(item[versionKey]);
+      // Conventional properties return network edge mappings here and the active
+      // version in property metadata. Bucket assignments may return their own version.
+      const activeMapping = stringValue(item[`${networkPrefix}EdgeHostnameId`]) ?? stringValue(item[`${networkPrefix}CnameTo`]);
+      return activeMapping ? metadataVersion : null;
+    }))];
+    const nextLink = asObject(asObject(reply.data)['hostnames'])['nextLink'] ?? asObject(reply.data)['nextLink'] ?? null;
+    const version = versions.length === 1 ? versions[0] ?? null : null;
+    const associationStatus = matches.length && version !== null ? 'CONFIRMED' : !matches.length && !nextLink ? 'NOT_MATCHED' : 'UNKNOWN';
+    const output = result([...metadata.evidence, apiEvidence(reply, { propertyId: ref.propertyId, hostname: ref.hostname, environment: ref.environment }, reply.data)]);
+    output.inferences.push({
+      kind: 'hostname_association', propertyId: ref.propertyId, contractId: ref.contractId ?? null, groupId: ref.groupId ?? null,
+      hostname: ref.hostname, environment: ref.environment, associationStatus, version,
+      reason: associationStatus === 'CONFIRMED' ? 'EXACT_HOSTNAME_WITH_ACTIVE_VERSION' : associationStatus === 'NOT_MATCHED' ? 'NO_EXACT_HOSTNAME_IN_REQUESTED_NETWORK' : 'HOSTNAME_PAGE_OR_ACTIVE_VERSION_INCOMPLETE',
+      nextAction: associationStatus === 'CONFIRMED' ? 'READ_ACTIVE_PROPERTY_RULES' : associationStatus === 'NOT_MATCHED' ? 'CONTINUE_PROPERTY_INVENTORY' : 'RESOLVE_INCOMPLETE_ASSOCIATION',
+    });
+    output.limitations.push('NOT_MATCHED descarta apenas esta candidata neste ambiente; não indica falta de permissão. Não use suas regras para responder sobre o hostname. CONFIRMED identifica associação e versão na API, sem comprovar execução em runtime.');
+    if (associationStatus === 'UNKNOWN') output.status = 'partial';
+    return output;
   }
 
   private resource(ref: PropertySelection, version: number): JsonObject {

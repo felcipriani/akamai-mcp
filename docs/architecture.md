@@ -41,6 +41,10 @@ As ferramentas retornam o mesmo envelope em `structuredContent` e em texto JSON.
 
 `status` distingue `success`, `partial` e `error`. Uma consulta composta pode preservar evidências disponíveis e indicar as falhas em `unavailable`. `isError` acompanha `status=error`; entradas rejeitadas pelo SDK podem usar o erro padrão MCP.
 
+A busca `search_properties_by_domain` combina leituras GET por grupos e properties com um filtro local dos nomes. Retorna somente candidatas, fontes, cobertura do lote e cursor de continuação, sem materializar todo o inventário no contexto do agente. O tamanho do lote respeita o orçamento configurado; erros de escopo preservam resultados disponíveis e deixam a cobertura parcial. A busca não utiliza o endpoint POST de pesquisa PAPI.
+
+A confirmação CDN retorna em `inferences` uma classificação `hostname_association`: `CONFIRMED`, `NOT_MATCHED` ou `UNKNOWN`, acompanhada da próxima ação. A classificação usa o hostname exato e a versão ativa retornados por PAPI; para properties convencionais, combina o vínculo de edge hostname da rede com a versão ativa dos metadados. Uma versão informada na atribuição do hostname tem precedência. Dados insuficientes resultam em `UNKNOWN`; erros ficam em `unavailable`. `get_hostname_overview` só consulta segurança quando solicitado explicitamente. `explain_cdn_behavior` verifica o vínculo antes de ler regras; candidatas descartadas não geram evidências de cache para o hostname.
+
 ## Versões e regras
 
 PAPI mantém `latestVersion`, `productionVersion` e `stagingVersion`. Application Security possui sua própria sequência de versões. O seletor padrão é produção; versões explícitas identificam o conteúdo consultado sem comprovar ativação.

@@ -16,13 +16,17 @@ export class OperationalInvestigation {
     private readonly settings: Settings,
   ) {}
 
-  async hostname(input: { hostname: string; environment: 'PRODUCTION' | 'STAGING'; offset: number; limit: number; properties: PropertyRef[]; configIds: number[] }, context: InvestigationContext): Promise<InvestigationResult> {
+  async hostname(input: { hostname: string; environment: 'PRODUCTION' | 'STAGING'; offset: number; limit: number; properties: PropertyRef[]; configIds: number[]; includeSecurity?: boolean }, context: InvestigationContext): Promise<InvestigationResult> {
     const output = result([]);
     for (const ref of input.properties.slice(0, 5)) {
-      await collect(output, 'property_version', { propertyId: ref.propertyId }, context, () => this.properties.active(ref, context));
+      const unavailableBefore = output.unavailable.length;
       await collect(output, 'active_hostname_association', { propertyId: ref.propertyId }, context, () => this.properties.hostnameAssociation({ ...ref, hostname: input.hostname, environment: input.environment }, context));
+      if (output.unavailable.length > unavailableBefore) {
+        output.inferences.push({ kind: 'hostname_association', propertyId: ref.propertyId, contractId: ref.contractId ?? null, groupId: ref.groupId ?? null, hostname: input.hostname, environment: input.environment, associationStatus: 'UNKNOWN', version: null, reason: 'API_UNAVAILABLE', nextAction: 'RESOLVE_UNAVAILABLE_SOURCE' });
+      }
     }
     if (!input.properties.length) output.limitations.push('Nenhuma property informada; a associação CDN não foi consultada. Use list_properties, percorra nextOffset e nextScopeOffset e informe as referências em properties para confirmar o hostname no ambiente.');
+    if (!input.includeSecurity && !input.configIds.length) return output;
     let securityConfigs = input.configIds;
     if (!securityConfigs.length) {
       await collect(output, 'security_configurations', { hostname: input.hostname }, context, async () => this.security.list({ offset: 0, limit: this.settings.maxResults }, context));
