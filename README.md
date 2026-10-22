@@ -41,13 +41,15 @@ Sem credenciais, a conexão MCP e as ferramentas de documentação pública cont
 - Consultar ações WAF e rate policies associadas a uma política de segurança.
 - Reunir diferenças e ativações de configuração no período de um incidente.
 
-Para identificar a property de um hostname, use `search_properties_by_domain` com o hostname completo. A ferramenta percorre grupos internamente e filtra nomes; confirme as candidatas com `get_hostname_overview`. O resultado distingue `CONFIRMED`, `NOT_MATCHED` e `UNKNOWN`. `explain_cdn_behavior` só lê regras após confirmar a associação no ambiente solicitado. A confirmação CDN consulta apenas PAPI por padrão; segurança exige opção explícita.
+Para identificar a property de um hostname, use `search_properties_by_domain` com o hostname completo. A ferramenta percorre grupos internamente e filtra nomes; confirme as candidatas com `get_hostname_overview`. O resultado distingue `CONFIRMED`, `NOT_MATCHED` e `UNKNOWN`. `explain_cdn_behavior` confirma a associação e retorna um panorama da árvore inteira, incluindo exceções de cache por path, antes dos detalhes paginados. A confirmação CDN consulta apenas PAPI por padrão; segurança exige opção explícita.
 
 O [procedimento completo](docs/tools.md#identificar-a-property-de-um-hostname) também é enviado ao agente nas instruções MCP. Todas as consultas autenticadas utilizam GET.
 
 ## Resultados
 
 As ferramentas retornam dados estruturados com a fonte consultada, o recurso, a paginação e o status da operação. O contrato separa `evidence`, `inferences`, `unavailable` e `errors`, permitindo distinguir o que foi observado das interpretações e lacunas da consulta.
+
+As respostas começam pelo panorama, cobertura e próximas ações. Uma pergunta geral pode ser respondida com a análise completa sem percorrer todos os detalhes; listas exaustivas exigem as continuações indicadas. Consulte os [fluxos de investigação](docs/investigations.md).
 
 Versões de CDN e segurança são independentes. Comparações são estruturais; o servidor não simula a execução das regras na borda.
 

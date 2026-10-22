@@ -163,6 +163,34 @@ test('MCP rejects invalid arguments and unknown tools, then remains responsive',
   }
   assert.equal((await session.client.listTools()).tools.length, 18);
 });
+test('MCP puts the complete cache overview before a truncated page and provides a runnable continuation', async t => {
+  const session = await connect(true, { FIXTURE_CDN_OVERVIEW: 'true' });
+  t.after(() => session.client.close());
+  const args = { propertyId: 'prp_123', hostname: 'example.com', path: '/', focus: 'all' };
+  const reply = await session.client.callTool({ name: 'explain_cdn_behavior', arguments: args });
+  assert.equal(reply.isError, false);
+  const content = asObject(toJson(reply.structuredContent));
+  assert.equal(content.status, 'partial');
+  assert.equal(asObject(content.coverage).analysisComplete, true);
+  assert.equal(asObject(content.coverage).detailsComplete, false);
+  const overview = asObject(asArray(content.inferences)[0]);
+  assert.equal(overview.totalBehaviorsAnalyzed, 52);
+  assert.equal(asObject(overview.cache).allCachingDirectivesAreNoStore, false);
+  const text = reply.content[0]; assert.ok(text?.type === 'text');
+  const prefix = text.text.slice(0, 10000);
+  for (const expected of ['/featureflagmanager/*', '*/flags', '7d', 'service', 'requestMethod']) assert.ok(prefix.includes(expected), expected);
+  assert.ok(text.text.indexOf('cdn_configuration_overview') < text.text.indexOf('"evidence":'));
+  const action = asObject(asArray(content.nextActions)[0]);
+  assert.equal(action.tool, 'explain_cdn_behavior');
+  assert.equal(asObject(action.arguments).offset, 50);
+  const next = await session.client.callTool({ name: String(action.tool), arguments: asObject(action.arguments) });
+  assert.equal(next.isError, false);
+  const source = asArray(asObject(toJson(next.structuredContent)).evidence).map(asObject).find(item => item.operation === 'propertyRules');
+  assert.equal(asArray(source?.data).length, 2);
+  const compact = await session.client.callTool({ name: 'explain_cdn_behavior', arguments: { propertyId: 'prp_123', hostname: 'example.com', path: '/' } });
+  assert.equal(compact.isError, false);
+  assert.equal(asObject(asObject(toJson(compact.structuredContent)).coverage).detailsComplete, true);
+});
 test('MCP bounds concurrent calls and response bytes', async t => {
   const session = await connect(true, { AKAMAI_MAX_CONCURRENT_TOOLS: '1', FIXTURE_DELAY_MS: '100', AKAMAI_MAX_TOOL_BYTES: '8192', FIXTURE_LARGE_DOC: 'true' });
   t.after(() => session.client.close());

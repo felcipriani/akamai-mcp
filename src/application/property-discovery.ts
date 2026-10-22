@@ -63,10 +63,11 @@ export class PropertyDiscovery {
       candidates: page.items,
       lookupStatus: candidates.length ? 'CANDIDATES_FOUND' : 'NO_NAME_MATCH_IN_BATCH',
       sources,
-      coverage: { scopeCount: scopes.length, startScopeOffset: input.scopeOffset, endScopeOffset: end, scopesSucceeded: sources.length, propertiesScanned, inventoryComplete },
+      coverage: { coverageScope: 'PROPERTY_NAME_CANDIDATES', scopeCount: scopes.length, startScopeOffset: input.scopeOffset, endScopeOffset: end, scopesSucceeded: sources.length, propertiesScanned, inventoryComplete, hostnameInventoryComplete: false, uniquenessEstablished: false },
       nextAction: page.items.length ? 'CONFIRM_HOSTNAME_ASSOCIATION' : nextCursor ? 'CONTINUE_SEARCH_WITH_NEXT_CURSOR' : 'CHECK_HOSTNAMES_OF_DIFFERENTLY_NAMED_PROPERTIES',
     });
-    item.pagination = { ...page.pagination, mode: 'inventory_batch', scopeOffset: input.scopeOffset, maxScopes: batchSize, nextCursor };
+    const { complete: batchPageComplete, ...pagination } = page.pagination;
+    item.pagination = { ...pagination, batchPageComplete: batchPageComplete ?? false, mode: 'inventory_batch', scopeOffset: input.scopeOffset, maxScopes: batchSize, nextCursor };
     output.evidence.push(item);
     if (nextCursor || output.unavailable.length) output.status = 'partial';
     output.limitations.push('Filtro local literal por domínio nos nomes: domínio exato ou subdomínios, com sufixo de nome como _dsa. Nomes não confirmam associação CDN; properties com outros nomes podem atender o hostname.',

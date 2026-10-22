@@ -1,5 +1,5 @@
 import type { Settings } from '../configuration/config.js';
-import { asArray, asObject, stringValue } from '../domain/json.js';
+import { asArray, asObject } from '../domain/json.js';
 import { normalizedHostname } from '../domain/hostname.js';
 import { result } from '../domain/results.js';
 import type { InvestigationResult } from '../domain/results.js';
@@ -58,29 +58,13 @@ export class OperationalInvestigation {
     const security = input.security;
     if (property) {
       await collect(output, 'property_diff', { propertyId: property.propertyId }, context, () => this.properties.compare({ ...property, offset: input.offset, limit: input.limit }, context));
-      await collect(output, 'property_activation_history', { propertyId: property.propertyId }, context, () => this.properties.activations({ ...property, offset: input.offset, limit: input.limit }, context));
+      await collect(output, 'property_activation_history', { propertyId: property.propertyId }, context, () => this.properties.activations({ ...property, fromTime: input.fromTime, toTime: input.toTime, offset: input.offset, limit: input.limit }, context));
     }
     if (security) {
       await collect(output, 'security_diff', { configId: security.configId }, context, () => this.security.compare({ ...security, offset: input.offset, limit: input.limit }, context));
-      await collect(output, 'security_activation_history', { configId: security.configId }, context, () => this.security.activations({ ...security, offset: input.offset, limit: input.limit }, context));
+      await collect(output, 'security_activation_history', { configId: security.configId }, context, () => this.security.activations({ ...security, fromTime: input.fromTime, toTime: input.toTime, offset: input.offset, limit: input.limit }, context));
     }
-    const from = input.fromTime ? Date.parse(input.fromTime) : -Infinity;
-    const to = input.toTime ? Date.parse(input.toTime) : Infinity;
-    for (const item of output.evidence) {
-      if (!['propertyActivations', 'securityActivations'].includes(item.operation)) continue;
-      const records = asArray(item.data);
-      const filtered = records.filter(record => {
-        const row = asObject(record);
-        const timestamp = stringValue(row['activationDate']) ?? stringValue(row['submitDate']);
-        if (!timestamp) return true;
-        const time = Date.parse(timestamp);
-        return !Number.isFinite(time) || (time >= from && time <= to);
-      });
-      item.data = filtered;
-      item.pagination = { ...item.pagination, filteredReturned: filtered.length, filterAppliedAfterPagination: true };
-      item.resource = { ...item.resource, fromTime: input.fromTime ?? null, toTime: input.toTime ?? null };
-    }
-    output.limitations.push('Período filtra localmente apenas a página de ativações consultada; percorra páginas para investigar todo o histórico. Horários de envio e conclusão podem diferir.', 'Diffs e ativações fornecem evidências, sem determinar causa do incidente. Alterações não ativadas não aparecem necessariamente no histórico de ativações.');
+    output.limitations.push('Período filtra o histórico completo retornado pela API antes de paginar as ativações. Horários de envio e conclusão podem diferir.', 'Diffs e ativações fornecem evidências, sem determinar causa do incidente. Alterações não ativadas não aparecem necessariamente no histórico de ativações.');
     return output;
   }
 }

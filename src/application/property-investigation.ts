@@ -5,7 +5,10 @@ import { asArray, asObject, nestedItems, positiveVersion, selectFields, stringVa
 import type { JsonObject } from '../domain/json.js';
 import { jsonPointer, localPage } from '../domain/pagination.js';
 import type { Page } from '../domain/pagination.js';
-import { behaviorEvidence, compareJson } from '../domain/rules.js';
+import { behaviorEvidence, cdnOverview, compareJson, focusedBehaviors, ruleOutline } from '../domain/rules.js';
+import type { BehaviorFocus } from '../domain/rules.js';
+import { filterTimeWindow } from '../domain/time-window.js';
+import type { TimeWindow } from '../domain/time-window.js';
 import { result } from '../domain/results.js';
 import type { InvestigationResult } from '../domain/results.js';
 import type { AkamaiReader } from './ports.js';
@@ -89,9 +92,16 @@ export class PropertyInvestigation {
     return { ...selected, reply, data, rules: data['rules'] };
   }
 
-  async configuration(ref: PropertySelection & { subtreePointer: string }, context: InvestigationContext): Promise<InvestigationResult> {
+  async configuration(ref: PropertySelection & { subtreePointer: string; view?: 'auto' | 'rules' | 'outline'; offset?: number; limit?: number }, context: InvestigationContext): Promise<InvestigationResult> {
     const configured = await this.rules(ref, context);
     const subtree = jsonPointer(configured.rules, ref.subtreePointer);
+    const useOutline = ref.view === 'outline' || (ref.view !== 'rules' && Buffer.byteLength(JSON.stringify(subtree)) > this.settings.maxToolBytes / 4);
+    if (useOutline) {
+      const outline = localPage(ruleOutline(configured.rules, () => context.checkpoint()), { offset: ref.offset ?? 0, limit: ref.limit ?? 20 }, this.settings.maxResults);
+      const item = apiEvidence(configured.reply, this.resource(ref, configured.version), { view: 'outline', outlineRoot: '', requestedSubtreePointer: ref.subtreePointer, rules: null, nodes: outline.items });
+      item.pagination = outline.pagination;
+      return { ...result([...configured.metadata.evidence, item], ['Outline da árvore inteira para escolher subtreePointer sem perder a orientação quando a configuração é grande. Os nomes não substituem a leitura dos critérios e behaviors.']), inferences: [{ kind: 'property_configuration_outline', analysisComplete: false, reason: ref.view === 'outline' ? 'OUTLINE_REQUESTED' : 'RULES_TOO_LARGE_FOR_DEFAULT_VIEW', ruleCount: outline.pagination['total'] ?? 0, nextAction: 'SELECT_SUBTREE_POINTER_FROM_OUTLINE' }] };
+    }
     const item = apiEvidence(configured.reply, this.resource(ref, configured.version), {
       ruleFormat: configured.data['ruleFormat'] ?? null,
       etag: configured.reply.etag,
@@ -122,26 +132,27 @@ export class PropertyInvestigation {
     const right = asObject(after.data);
     if (!left['rules'] || !right['rules']) throw new InvestigationError('INVALID_RESPONSE', 'Árvore ausente na comparação.');
     const diff = compareJson(jsonPointer(left['rules'], ref.subtreePointer), jsonPointer(right['rules'], ref.subtreePointer), ref.offset, Math.min(ref.limit, this.settings.maxResults), () => context.checkpoint());
-    const item = apiEvidence(after, { propertyId: ref.propertyId, fromVersion: ref.fromVersion, toVersion: ref.toVersion, subtreePointer: ref.subtreePointer }, {
+    const item = apiEvidence(after, { propertyId: ref.propertyId, contractId: ref.contractId ?? null, groupId: ref.groupId ?? null, fromVersion: ref.fromVersion, toVersion: ref.toVersion, subtreePointer: ref.subtreePointer }, {
       ...diff, fromRuleFormat: left['ruleFormat'] ?? null, toRuleFormat: right['ruleFormat'] ?? null,
       fromRetrievedAt: before.retrievedAt, toRetrievedAt: after.retrievedAt,
       fromEtag: before.etag, toEtag: after.etag,
     });
     item.operation = 'propertyRules × 2; structural comparison';
     item.pagination = asObject(diff['pagination']);
-    return result([item], ['Diff estrutural local, com arrays em ordem. Versões editáveis podem mudar entre leituras; não é snapshot transacional nem prova do comportamento em runtime.', 'Mudanças de ruleFormat ou includes podem afetar a comparação sem alterar o comportamento efetivo.']);
+    return { ...result([item], ['Diff estrutural local, com arrays em ordem. Versões editáveis podem mudar entre leituras; não é snapshot transacional nem prova do comportamento em runtime.', 'Mudanças de ruleFormat ou includes podem afetar a comparação sem alterar o comportamento efetivo.']), inferences: [{ kind: 'configuration_comparison_overview', api: 'PAPI', propertyId: ref.propertyId, ...asObject(diff['summary']) }] };
   }
 
-  async activations(ref: PropertyRef & Page & { environment?: 'PRODUCTION' | 'STAGING' | undefined }, context: InvestigationContext): Promise<InvestigationResult> {
+  async activations(ref: PropertyRef & Page & TimeWindow & { environment?: 'PRODUCTION' | 'STAGING' | undefined }, context: InvestigationContext): Promise<InvestigationResult> {
     const reply = await this.reader.read('propertyActivations', { propertyId: ref.propertyId }, this.scopeQuery(ref), context);
     const entries = nestedItems(reply.data, 'activations').filter(item => !ref.environment || asObject(item)['network'] === ref.environment);
-    const page = localPage(entries, ref, this.settings.maxResults);
-    const item = apiEvidence(reply, { propertyId: ref.propertyId, environment: ref.environment ?? 'BOTH' }, page.items);
-    item.pagination = page.pagination;
-    return result([item], ['Histórico inclui tentativas e diferentes status. submitDate não é necessariamente horário de conclusão; consulte campos retornados.']);
+    const filtered = filterTimeWindow(entries, ref);
+    const page = localPage(filtered.entries, ref, this.settings.maxResults);
+    const item = apiEvidence(reply, { propertyId: ref.propertyId, contractId: ref.contractId ?? null, groupId: ref.groupId ?? null, environment: ref.environment ?? 'BOTH', fromTime: ref.fromTime ?? null, toTime: ref.toTime ?? null }, page.items);
+    item.pagination = { ...page.pagination, timeFilterAppliedBeforePagination: true, unknownTimestampCount: filtered.unknownTimestampCount };
+    return result([item], ['Histórico inclui tentativas e diferentes status. submitDate não é necessariamente horário de conclusão; consulte campos retornados.', 'Registros sem horário válido são preservados, mas não comprovam ocorrência dentro da janela informada.']);
   }
 
-  async explain(ref: PropertySelection & Page & { hostname: string; path: string; behaviorNames: string[] }, context: InvestigationContext): Promise<InvestigationResult> {
+  async explain(ref: PropertySelection & Page & { hostname: string; path: string; behaviorNames: string[]; focus?: BehaviorFocus }, context: InvestigationContext): Promise<InvestigationResult> {
     if (ref.environment === 'LATEST') throw new InvestigationError('INVALID_INPUT', 'Informe PRODUCTION ou STAGING para investigar um hostname. Para inspeção de versão inativa, use get_property_configuration.');
     const association = await this.hostnameAssociation({ ...ref, environment: ref.environment }, context);
     const confirmation = association.inferences[0];
@@ -155,11 +166,13 @@ export class PropertyInvestigation {
       throw new InvestigationError('INVALID_INPUT', 'A versão solicitada difere da versão ativa confirmada para este hostname. Para inspeção histórica, use get_property_configuration.');
     }
     const configured = await this.rules(ref, context, { version: activeVersion, metadata: association });
-    const behaviors = behaviorEvidence(configured.rules, ref.behaviorNames, () => context.checkpoint());
-    const page = localPage(behaviors, ref, this.settings.maxResults);
-    const item = apiEvidence(configured.reply, { ...this.resource(ref, configured.version), hostname: ref.hostname, path: ref.path, associationStatus: 'CONFIRMED' }, page.items);
+    const behaviors = behaviorEvidence(configured.rules, [], () => context.checkpoint());
+    const focus = ref.focus ?? 'overview';
+    const page = localPage(focusedBehaviors(behaviors, focus, ref.behaviorNames), ref, this.settings.maxResults);
+    const overview = cdnOverview(behaviors, ref.path);
+    const item = apiEvidence(configured.reply, { ...this.resource(ref, configured.version), hostname: ref.hostname, path: ref.path, associationStatus: 'CONFIRMED', focus }, page.items);
     item.pagination = page.pagination;
-    return { ...result([...association.evidence, item], ['Associação do hostname confirmada no ambiente solicitado. path é contexto, sem avaliação automática de critérios ou cálculo de TTL efetivo.', 'Evidências de behaviors com todos os critérios ancestrais. O cliente MCP deve interpretar ordem, critérios desconhecidos, includes e behaviors externos com documentação oficial.']), inferences: association.inferences };
+    return { ...result([...association.evidence, item], ['O panorama em inferences considera toda a árvore consultada antes da paginação dos detalhes. Uma página incompleta não permite inventariar todos os detalhes, mas não oculta os modos de cache observados no panorama.', 'Associação do hostname confirmada. path é contexto; leia os critérios ancestrais de cada regra antes de atribuir uma configuração ao path. Não calcula execução ou TTL efetivo.']), inferences: [...association.inferences, overview] };
   }
 
   async hostnameAssociation(ref: PropertyRef & { hostname: string; environment: 'PRODUCTION' | 'STAGING' }, context: InvestigationContext): Promise<InvestigationResult> {

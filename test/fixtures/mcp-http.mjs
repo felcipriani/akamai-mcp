@@ -21,6 +21,21 @@ globalThis.fetch = async (input, init) => {
         ? [{ propertyId: 'prp_123', propertyName: 'api-external.example.com_dsa' }] : [] } });
     if (path.endsWith('/hostnames')) return Response.json({ hostnames: { items: path.includes('/prp_111/') ? [] : [{ cnameFrom: 'api-external.example.com', productionVersion: 2 }] } });
   }
+  if (process.env.FIXTURE_CDN_OVERVIEW && path.startsWith('/papi/') && path.endsWith('/rules')) {
+    return Response.json({ rules: { name: 'default', behaviors: [
+      { name: 'origin', options: { hostname: 'origin.example.com' } },
+      { name: 'modifyOutgoingResponseHeader', options: { name: 'X-Example', value: 'configured' } },
+      { name: 'caching', options: { behavior: 'NO_STORE' } },
+      ...Array.from({ length: 47 }, (_, index) => ({ name: `unrelatedBehavior${index}`, options: { description: 'x'.repeat(250) } })),
+    ], children: [
+      { name: 'Feature Flag Manager', criteria: [{ name: 'path', options: { values: ['/featureflagmanager/*'] } }], children: [
+        { name: 'Caching', criteria: [{ name: 'path', options: { values: ['*/flags', '*/flags/'] } }, { name: 'requestMethod', options: { values: ['GET'] } }], behaviors: [
+          { name: 'caching', options: { behavior: 'MAX_AGE', ttl: '7d' } },
+          { name: 'cacheId', options: { elements: ['service'], rule: 'INCLUDE_HEADERS' } },
+        ] },
+      ] },
+    ] } });
+  }
   let data = {};
   if (path === '/papi/v1/groups') data = { groups: { items: [{ groupId: 'grp_1', contractIds: ['ctr_1'] }] } };
   else if (path === '/papi/v1/properties' || /^\/papi\/v1\/properties\/prp_\d+$/.test(path)) data = { properties: { items: [{ propertyId: 'prp_123', propertyName: 'fixture', latestVersion: 3, productionVersion: 2, stagingVersion: 3 }] } };

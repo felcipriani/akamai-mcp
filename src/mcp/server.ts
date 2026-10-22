@@ -4,6 +4,7 @@ import * as z from 'zod/v4';
 import type { Configuration } from '../configuration/config.js';
 import { packageInfo } from '../configuration/package-info.js';
 import { InvestigationContext } from '../application/context.js';
+import { investigationGuidance } from '../application/investigation-guidance.js';
 import { PropertyInvestigation } from '../application/property-investigation.js';
 import { PropertyDiscovery } from '../application/property-discovery.js';
 import { SecurityInvestigation } from '../application/security-investigation.js';
@@ -22,6 +23,7 @@ import * as schemas from './schemas.js';
 const outputSchema = z.object({
   schemaVersion: z.literal('1.0'), tool: z.string(), timestamp: z.string(),
   status: z.enum(['success', 'partial', 'error']),
+  coverage: z.record(z.string(), z.unknown()), nextActions: z.array(z.record(z.string(), z.unknown())),
   evidence: z.array(z.record(z.string(), z.unknown())),
   inferences: z.array(z.record(z.string(), z.unknown())),
   unavailable: z.array(z.record(z.string(), z.unknown())),
@@ -39,6 +41,9 @@ export function createServer(configuration: Configuration, shutdown: AbortSignal
       'Ao confirmar uma property, encerre a descoberta se o usuário pediu uma property. Para listar todas, percorra todos os cursores e confirme as candidatas. Se não houver nome correspondente, use list_properties: percorra nextOffset no mesmo escopo e nextScopeOffset com offset=0, incluindo properties com nomes diferentes. Preserve propertyId, contractId e groupId dos dados ou evidence.resource. O filtro de nomes não demonstra ausência de associação.',
       'Mantenha PRODUCTION ou STAGING conforme o pedido; uma candidata descartada em produção não deve ser resgatada pela latestVersion ou por staging. AppSec não comprova qual property CDN atende o hostname. Nunca leia cache de uma candidata NOT_MATCHED para responder sobre esse hostname. get_property_configuration lê rules, não hostnames.',
       'Após CONFIRMED, use explain_cdn_behavior com a referência e o mesmo ambiente; a ferramenta verifica a associação antes de ler cache e retorna critérios ancestrais. get_hostname_overview já informa versões; não repita metadados sem necessidade. Para leitura completa use get_property_configuration com a versão confirmada. Distinga configuração de execução observada e informe cobertura parcial se houver erros ou interrupção.',
+      'Leia coverage e inferences antes dos detalhes. explain_cdn_behavior calcula o panorama na árvore inteira e destaca modos de cache e regras condicionais com seus paths, mesmo fora da página de detalhes. Informe exceções MAX_AGE/TTL e todos os critérios ancestrais; não generalize NO_STORE nem declare cacheError o único cache efetivo. focus=overview/cache/origin/headers/all seleciona detalhes; path não é um filtro avaliado.',
+      'analysisComplete refere-se ao panorama calculado; detailsComplete refere-se à paginação. Para uma resposta de panorama, detalhes adicionais podem ser opcionais. Para uma lista exaustiva, siga nextActions e todas as continuações; nunca descarte itens não lidos como irrelevantes. Busca por nomes ou confirmação de candidatas não estabelece unicidade nem lista de todas as properties do hostname.',
+      'As ferramentas fornecem configuração e históricos de ativação, sem eventos de tráfego, contagens de bloqueio ou rankings de IPs. Não tente obter telemetria enumerando policies. Em segurança, respeite sourceScope: dados da configuração não são automaticamente filtrados pela policy. Relacione rate policies e ações por ID, nunca pela posição dos arrays. Coincidência de diff e ativação não comprova causa.',
     ].join(' '),
   });
   const client = new AkamaiClient(configuration);
@@ -50,18 +55,23 @@ export function createServer(configuration: Configuration, shutdown: AbortSignal
   const redactor = new Redactor(configuration);
   let runningTools = 0;
 
-  const response = (name: string, output: InvestigationResult, errors: JsonObject[] = []): CallToolResult => {
+  const response = (name: string, output: InvestigationResult, errors: JsonObject[] = [], input: JsonObject = {}): CallToolResult => {
     if (output.unavailable.length && !output.evidence.length) output.status = 'error';
+    const guided = investigationGuidance(name, input, output);
+    const { evidence, inferences, unavailable, limitations, status, coverage, nextActions } = guided;
     const structuredContent = asObject(redactor.json(toJson({
-      schemaVersion: '1.0', tool: name, timestamp: new Date().toISOString(), ...output, errors,
+      schemaVersion: '1.0', tool: name, timestamp: new Date().toISOString(), status, coverage,
+      inferences: [...inferences.filter(item => item['kind'] === 'cdn_configuration_overview'), ...inferences.filter(item => item['kind'] !== 'cdn_configuration_overview')],
+      nextActions, unavailable, limitations, errors, evidence,
       redaction: 'Credenciais conhecidas e campos de segredo mascarados. A sanitização pode ocultar diferenças entre valores secretos.',
     })));
-    return { content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: output.status === 'error' };
+    return { content: [{ type: 'text', text: JSON.stringify(structuredContent) }], structuredContent, isError: status === 'error' };
   };
 
-  const invoke = async (name: string, signal: AbortSignal, task: (context: InvestigationContext) => Promise<InvestigationResult>): Promise<CallToolResult> => {
+  const invoke = async (name: string, input: unknown, signal: AbortSignal, task: (context: InvestigationContext) => Promise<InvestigationResult>): Promise<CallToolResult> => {
+    const argumentsObject = asObject(toJson(input));
     if (runningTools >= configuration.settings.maxConcurrentTools) {
-      return response(name, { ...result([]), status: 'error' }, [publicError(new InvestigationError('BUSY', 'Limite de investigações simultâneas atingido.', {}, true))]);
+      return response(name, { ...result([]), status: 'error' }, [publicError(new InvestigationError('BUSY', 'Limite de investigações simultâneas atingido.', {}, true))], argumentsObject);
     }
     runningTools++;
     const context = new InvestigationContext(signal, configuration.settings, shutdown);
@@ -69,7 +79,7 @@ export function createServer(configuration: Configuration, shutdown: AbortSignal
     try {
       const output = await task(context);
       context.checkpoint();
-      const reply = response(name, output);
+      const reply = response(name, output, [], argumentsObject);
       if (Buffer.byteLength(JSON.stringify(reply), 'utf8') > configuration.settings.maxToolBytes) {
         const guidance = name === 'get_hostname_overview' ? 'Para CDN, use includeSecurity=false e omita configIds. Para segurança, informe um configId e reduza limit.'
           : name === 'search_properties_by_domain' ? 'Reduza limit ou maxScopes e siga nextCursor.' : 'Reduza limit, sections ou maxCharacters; para rules, selecione subtreePointer.';
@@ -86,7 +96,7 @@ export function createServer(configuration: Configuration, shutdown: AbortSignal
         try { context.checkpoint(); } catch (cancelled) { visible = publicError(cancelled); }
       }
       logEvent('tool_failed', { tool: name, code: String(visible['code']) });
-      const failure = response(name, { ...result([]), status: 'error' }, [visible]);
+      const failure = response(name, { ...result([]), status: 'error' }, [visible], argumentsObject);
       if (Buffer.byteLength(JSON.stringify(failure), 'utf8') <= configuration.settings.maxToolBytes) return failure;
       return response(name, { ...result([]), status: 'error' }, [{ code: visible['code'] ?? 'INTERNAL_ERROR', message: 'Resposta excedeu limites; reduza o escopo. Detalhes omitidos.', retryable: false }]);
     } finally {
@@ -97,41 +107,41 @@ export function createServer(configuration: Configuration, shutdown: AbortSignal
   const common = { outputSchema, annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true } };
 
   server.registerTool('search_properties_by_domain', { ...common, description: 'Localiza candidatas por domínio nos nomes, percorrendo internamente lotes de grupos com GET PAPI. Informe hostname completo em domain para priorizar a investigação; domínio pai inclui nomes de subdomínios. Retorna apenas nomes correspondentes e nextCursor. NOT_CHECKED exige confirmação com get_hostname_overview; não comprova associação CDN nem ausência do hostname.', inputSchema: schemas.propertyDomainSearchSchema },
-    (input, ctx) => invoke('search_properties_by_domain', ctx.mcpReq.signal, context => discovery.search(input, context)));
+    (input, ctx) => invoke('search_properties_by_domain', input, ctx.mcpReq.signal, context => discovery.search(input, context)));
   server.registerTool('list_properties', { ...common, description: 'Inventário geral por contrato/grupo. Para filtrar nomes por domínio, prefira search_properties_by_domain. Nesta listagem, comece com scopeOffset=0 e offset=0; percorra nextOffset no mesmo escopo e nextScopeOffset com offset=0. Confirme candidatas com get_hostname_overview.', inputSchema: schemas.propertyListSchema },
-    (input, ctx) => invoke('list_properties', ctx.mcpReq.signal, context => properties.list(input, context)));
+    (input, ctx) => invoke('list_properties', input, ctx.mcpReq.signal, context => properties.list(input, context)));
   server.registerTool('get_active_property_version', { ...common, description: 'Obtém productionVersion, stagingVersion e latestVersion separadamente, sem fallback entre ambientes.', inputSchema: schemas.propertyActiveSchema },
-    (input, ctx) => invoke('get_active_property_version', ctx.mcpReq.signal, context => properties.active(input, context)));
+    (input, ctx) => invoke('get_active_property_version', input, ctx.mcpReq.signal, context => properties.active(input, context)));
   server.registerTool('list_property_versions', { ...common, description: 'Lista versões da property por offset/limit do PAPI. Não segue links arbitrários.', inputSchema: z.object({ ...schemas.propertyRef, ...schemas.page }).strict() },
-    (input, ctx) => invoke('list_property_versions', ctx.mcpReq.signal, context => properties.versions(input, context)));
-  server.registerTool('get_property_configuration', { ...common, description: 'Lê rules hierárquicas e behaviors de versão explícita ou seletor PRODUCTION/STAGING/LATEST. subtreePointer seleciona subárvore relativa a rules.', inputSchema: schemas.propertyConfigurationSchema },
-    (input, ctx) => invoke('get_property_configuration', ctx.mcpReq.signal, context => properties.configuration(input, context)));
-  server.registerTool('compare_property_versions', { ...common, description: 'Compara estruturalmente duas árvores rules, preservando arrays em ordem. offset/limit paginam diferenças locais.', inputSchema: schemas.propertyCompareSchema },
-    (input, ctx) => invoke('compare_property_versions', ctx.mcpReq.signal, context => properties.compare(input, context)));
-  server.registerTool('get_property_activation_history', { ...common, description: 'Lê ativações da property, com filtro opcional de ambiente e paginação local.', inputSchema: schemas.propertyHistorySchema },
-    (input, ctx) => invoke('get_property_activation_history', ctx.mcpReq.signal, context => properties.activations(input, context)));
-  server.registerTool('explain_cdn_behavior', { ...common, description: 'Confirma o hostname na property e no ambiente PRODUCTION/STAGING antes de consultar behaviors e critérios ancestrais da versão ativa. NOT_MATCHED/UNKNOWN interrompem a leitura de regras: continue o inventário ou resolva a indisponibilidade. path contextualiza a investigação; não calcula execução ou TTL efetivo.', inputSchema: schemas.propertyExplainSchema },
-    (input, ctx) => invoke('explain_cdn_behavior', ctx.mcpReq.signal, context => properties.explain(input, context)));
+    (input, ctx) => invoke('list_property_versions', input, ctx.mcpReq.signal, context => properties.versions(input, context)));
+  server.registerTool('get_property_configuration', { ...common, description: 'Lê configurações por versão/ambiente. view=auto entrega rules quando couberem ou outline com pointers para aprofundar sem adivinhar subárvores. view=rules força conteúdo bruto; view=outline orienta navegação. subtreePointer seleciona subárvore relativa a rules.', inputSchema: schemas.propertyConfigurationSchema },
+    (input, ctx) => invoke('get_property_configuration', input, ctx.mcpReq.signal, context => properties.configuration(input, context)));
+  server.registerTool('compare_property_versions', { ...common, description: 'Compara duas versões e retorna resumo de todas as diferenças antes dos detalhes paginados. Preserva arrays em ordem. Contagens não comprovam efeito operacional; offset/limit aprofundam os detalhes.', inputSchema: schemas.propertyCompareSchema },
+    (input, ctx) => invoke('compare_property_versions', input, ctx.mcpReq.signal, context => properties.compare(input, context)));
+  server.registerTool('get_property_activation_history', { ...common, description: 'Investiga ativações CDN por ambiente e período fromTime/toTime, filtrando todo o histórico recebido antes de paginar. Horários desconhecidos são marcados; não comprovam ocorrência dentro da janela.', inputSchema: schemas.propertyHistorySchema },
+    (input, ctx) => invoke('get_property_activation_history', input, ctx.mcpReq.signal, context => properties.activations(input, context)));
+  server.registerTool('explain_cdn_behavior', { ...common, description: 'Responde sobre a configuração CDN de hostname confirmado: panorama de cache calculado na árvore inteira, incluindo exceções por path e TTL configurado, antes de paginar detalhes. focus=overview é compacto; cache/origin/headers/all aprofundam o assunto. Leia analysisComplete separadamente de detailsComplete. path não é filtro executado; critérios e runtime exigem interpretação.', inputSchema: schemas.propertyExplainSchema },
+    (input, ctx) => invoke('explain_cdn_behavior', input, ctx.mcpReq.signal, context => properties.explain(input, context)));
   server.registerTool('get_hostname_overview', { ...common, description: 'Verifica até 5 properties por hostname no ambiente solicitado usando GET PAPI. Retorna associação explícita CONFIRMED (ler regras), NOT_MATCHED (descartar candidata e continuar inventário) ou UNKNOWN (fonte incompleta/indisponível). Consulta AppSec apenas com includeSecurity=true ou configIds explícitos. Para CDN/cache deixe os padrões.', inputSchema: schemas.hostnameOverviewSchema },
-    (input, ctx) => invoke('get_hostname_overview', ctx.mcpReq.signal, context => operational.hostname(input, context)));
+    (input, ctx) => invoke('get_hostname_overview', input, ctx.mcpReq.signal, context => operational.hostname(input, context)));
   server.registerTool('list_security_configurations', { ...common, description: 'Lista security configurations acessíveis. Paginação local sobre a resposta Application Security.', inputSchema: schemas.securityListSchema },
-    (input, ctx) => invoke('list_security_configurations', ctx.mcpReq.signal, context => security.list(input, context)));
+    (input, ctx) => invoke('list_security_configurations', input, ctx.mcpReq.signal, context => security.list(input, context)));
   server.registerTool('get_active_security_configuration', { ...common, description: 'Obtém versões latest, produção e staging e productionHostnames da configuração de segurança.', inputSchema: schemas.securityActiveSchema },
-    (input, ctx) => invoke('get_active_security_configuration', ctx.mcpReq.signal, context => security.active(input.configId, context)));
+    (input, ctx) => invoke('get_active_security_configuration', input, ctx.mcpReq.signal, context => security.active(input.configId, context)));
   server.registerTool('list_security_configuration_versions', { ...common, description: 'Lista versões de segurança com page/pageSize e totalSize da API.', inputSchema: schemas.securityVersionsSchema },
-    (input, ctx) => invoke('list_security_configuration_versions', ctx.mcpReq.signal, context => security.versions(input, context)));
+    (input, ctx) => invoke('list_security_configuration_versions', input, ctx.mcpReq.signal, context => security.versions(input, context)));
   server.registerTool('get_security_policy', { ...common, description: 'Consulta políticas, controles, match targets, ações WAF, attack groups e custom rules por sections. Sem policyId, descobre políticas para consulta posterior.', inputSchema: schemas.securityPolicySchema },
-    (input, ctx) => invoke('get_security_policy', ctx.mcpReq.signal, context => security.policy(input, context)));
-  server.registerTool('get_rate_limiting_configuration', { ...common, description: 'Consulta rate policies e suas condições. Com policyId, inclui ações associadas. Não determina aplicação efetiva ao endpoint.', inputSchema: schemas.rateLimitingSchema },
-    (input, ctx) => invoke('get_rate_limiting_configuration', ctx.mcpReq.signal, context => security.rateLimiting(input, context)));
-  server.registerTool('get_security_activation_history', { ...common, description: 'Consulta histórico de ativações de segurança, com ambiente opcional e paginação local.', inputSchema: schemas.securityHistorySchema },
-    (input, ctx) => invoke('get_security_activation_history', ctx.mcpReq.signal, context => security.activations(input, context)));
-  server.registerTool('investigate_configuration_change', { ...common, description: 'Reutiliza diffs PAPI/export AppSec e históricos de ativação. Versões CDN e segurança são informadas separadamente; período filtra a página histórica.', inputSchema: schemas.configurationChangeSchema },
-    (input, ctx) => invoke('investigate_configuration_change', ctx.mcpReq.signal, context => operational.configurationChange(input, context)));
+    (input, ctx) => invoke('get_security_policy', input, ctx.mcpReq.signal, context => security.policy(input, context)));
+  server.registerTool('get_rate_limiting_configuration', { ...common, description: 'Investiga rate limiting relacionando definições e ações por ID. sections=definitions/actions permite aprofundamento e continuação independentes. Com policyId consulta suas ações na mesma versão; não determina aplicação efetiva ao endpoint.', inputSchema: schemas.rateLimitingSchema },
+    (input, ctx) => invoke('get_rate_limiting_configuration', input, ctx.mcpReq.signal, context => security.rateLimiting(input, context)));
+  server.registerTool('get_security_activation_history', { ...common, description: 'Investiga ativações de segurança por ambiente e período, filtrando antes de paginar. Distingue horários desconhecidos e versões de segurança das versões CDN.', inputSchema: schemas.securityHistorySchema },
+    (input, ctx) => invoke('get_security_activation_history', input, ctx.mcpReq.signal, context => security.activations(input, context)));
+  server.registerTool('investigate_configuration_change', { ...common, description: 'Investiga mudanças com resumo completo das diferenças e ativações filtradas por período antes da paginação. Preserva versões CDN/AppSec independentes e continuações por componente. Coincidência temporal não comprova causa.', inputSchema: schemas.configurationChangeSchema },
+    (input, ctx) => invoke('investigate_configuration_change', input, ctx.mcpReq.signal, context => operational.configurationChange(input, context)));
   server.registerTool('search_akamai_documentation', { ...common, description: 'Pesquisa lexical nos índices oficiais llms.txt de PAPI e Application Security. Não pesquisa todo o conteúdo ou toda a plataforma.', inputSchema: schemas.documentationSearchSchema },
-    (input, ctx) => invoke('search_akamai_documentation', ctx.mcpReq.signal, context => documentation.search(input, context)));
+    (input, ctx) => invoke('search_akamai_documentation', input, ctx.mcpReq.signal, context => documentation.search(input, context)));
   server.registerTool('get_akamai_documentation', { ...common, description: 'Lê uma página oficial Markdown por documentationId retornado na busca. Paginação por caracteres, domínio e produtos fixos, sem URLs arbitrárias.', inputSchema: schemas.documentationGetSchema },
-    (input, ctx) => invoke('get_akamai_documentation', ctx.mcpReq.signal, context => documentation.get(input, context)));
+    (input, ctx) => invoke('get_akamai_documentation', input, ctx.mcpReq.signal, context => documentation.get(input, context)));
 
   server.server.onerror = () => logEvent('protocol_error');
   return server;

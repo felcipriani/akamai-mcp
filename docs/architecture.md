@@ -29,7 +29,7 @@ flowchart LR
 
 ## Contrato de resposta
 
-As ferramentas retornam o mesmo envelope em `structuredContent` e em texto JSON. O envelope inclui `schemaVersion`, `tool`, `timestamp`, `status`, `evidence`, `inferences`, `unavailable`, `limitations`, `errors` e `redaction`.
+As ferramentas retornam o mesmo envelope em `structuredContent` e em texto JSON. O envelope inclui `schemaVersion`, `tool`, `timestamp`, `status`, `evidence`, `inferences`, `unavailable`, `limitations`, `errors`, `coverage`, `nextActions` e `redaction`. Panorama, cobertura e próximas ações precedem os detalhes na serialização.
 
 | Campo | Significado |
 | --- | --- |
@@ -38,6 +38,8 @@ As ferramentas retornam o mesmo envelope em `structuredContent` e em texto JSON.
 | `unavailable` | Componentes que não puderam ser consultados e seus motivos |
 | `limitations` | Restrições relevantes para interpretar o resultado |
 | `errors` | Falhas gerais da operação |
+| `coverage` | Completude do panorama e dos detalhes, continuações, fontes indisponíveis e limites de conclusão |
+| `nextActions` | Próximas tools e argumentos, com motivos e necessidade para detalhes exaustivos |
 
 `status` distingue `success`, `partial` e `error`. Uma consulta composta pode preservar evidências disponíveis e indicar as falhas em `unavailable`. `isError` acompanha `status=error`; entradas rejeitadas pelo SDK podem usar o erro padrão MCP.
 
@@ -58,3 +60,11 @@ A paginação é explícita. As ferramentas usam os parâmetros das APIs ou reco
 O transporte controla tempo, tentativas, concorrência e volume de dados. Cada tentativa autenticada recebe uma nova assinatura. Cancelamento MCP e encerramento do processo interrompem requisições e esperas pendentes. Redirecionamentos são recusados.
 
 Os resultados refletem o escopo e a disponibilidade das fontes no momento da consulta.
+
+## Fluxos investigativos
+
+`explain_cdn_behavior` calcula um panorama de toda a árvore recebida antes de selecionar o foco e paginar os detalhes. O foco padrão é compacto; cache, origin, headers e all oferecem aprofundamentos. O panorama preserva a existência de exceções condicionais mesmo quando sua evidência detalhada fica na última página. Paths contextualizam a investigação; não são um motor de avaliação de critérios.
+
+O servidor constrói orientações de continuação para as 18 tools usando o escopo e a paginação de cada evidência. Páginas pendentes produzem status partial e próximas ações. O panorama de CDN ou a contagem de diferenças pode estar completo enquanto os detalhes permanecem paginados. Nenhuma conclusão de unicidade deriva da busca por nomes.
+
+Configurações grandes no modo auto retornam um outline com pointers para aprofundar, sem nova chamada à API. Comparações produzem contagens de todas as diferenças antes de paginar. Históricos aplicam a janela temporal antes da paginação e preservam registros sem horário com timeWindowMembership=UNKNOWN. Seções de segurança declaram seu escopo; definições e ações de rate limiting são relacionadas por ID nas páginas disponíveis.

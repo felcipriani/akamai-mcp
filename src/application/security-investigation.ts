@@ -1,12 +1,14 @@
 import type { Settings } from '../configuration/config.js';
 import { InvestigationError } from '../domain/errors.js';
-import { asObject, positiveVersion } from '../domain/json.js';
+import { asArray, asObject, positiveVersion } from '../domain/json.js';
 import type { JsonObject } from '../domain/json.js';
 import { localPage } from '../domain/pagination.js';
 import type { Page } from '../domain/pagination.js';
 import type { Operation } from '../domain/read-policy.js';
 import { compareJson } from '../domain/rules.js';
 import { result } from '../domain/results.js';
+import { filterTimeWindow } from '../domain/time-window.js';
+import type { TimeWindow } from '../domain/time-window.js';
 import type { InvestigationResult } from '../domain/results.js';
 import { apiEvidence, collect } from './common.js';
 import type { InvestigationContext } from './context.js';
@@ -83,7 +85,7 @@ export class SecurityInvestigation {
         if (section !== 'custom_rule_definitions') parameters['version'] = selected.version;
         if (definition.needsPolicy && ref.policyId) parameters['policyId'] = ref.policyId;
         const reply = await this.reader.read(definition.operation, parameters, {}, context);
-        const resource: JsonObject = { ...this.resource(ref, selected.version), version: section === 'custom_rule_definitions' ? null : selected.version, policyId: ref.policyId ?? null, section };
+        const resource: JsonObject = { ...this.resource(ref, selected.version), version: section === 'custom_rule_definitions' ? null : selected.version, policyId: definition.needsPolicy ? ref.policyId ?? null : null, sourceScope: definition.needsPolicy ? 'POLICY' : section === 'custom_rule_definitions' ? 'CONFIGURATION_GLOBAL' : 'CONFIGURATION_VERSION', section };
         return this.sliceReply(reply, resource, definition.arrayKey, ref);
       });
     }
@@ -91,30 +93,43 @@ export class SecurityInvestigation {
     return output;
   }
 
-  async rateLimiting(ref: SecuritySelection & Page & { policyId?: string | undefined }, context: InvestigationContext): Promise<InvestigationResult> {
+  async rateLimiting(ref: SecuritySelection & Page & { policyId?: string | undefined; sections?: ('definitions' | 'actions')[] }, context: InvestigationContext): Promise<InvestigationResult> {
     const selected = await this.resolveVersion(ref, context);
     const output = selected.metadata;
-    await collect(output, 'rate_policies', { configId: ref.configId, version: selected.version }, context, async () => {
+    const sections = ref.sections ?? ['definitions', 'actions'];
+    if (sections.includes('definitions')) await collect(output, 'rate_policies', { configId: ref.configId, version: selected.version }, context, async () => {
       const reply = await this.reader.read('securityRatePolicies', { configId: ref.configId, version: selected.version }, {}, context);
-      return this.sliceReply(reply, this.resource(ref, selected.version), 'ratePolicies', ref);
+      return this.sliceReply(reply, { ...this.resource(ref, selected.version), section: 'definitions', sourceScope: 'CONFIGURATION_VERSION' }, 'ratePolicies', ref);
     });
-    if (ref.policyId) await collect(output, 'rate_actions', { policyId: ref.policyId }, context, async () => {
+    if (ref.policyId && sections.includes('actions')) await collect(output, 'rate_actions', { policyId: ref.policyId }, context, async () => {
       const reply = await this.reader.read('securityRatePolicyActions', { configId: ref.configId, version: selected.version, policyId: ref.policyId! }, {}, context);
-      return this.sliceReply(reply, { ...this.resource(ref, selected.version), policyId: ref.policyId! }, 'ratePolicyActions', ref);
+      return this.sliceReply(reply, { ...this.resource(ref, selected.version), policyId: ref.policyId!, section: 'actions', sourceScope: 'POLICY' }, 'ratePolicyActions', ref);
+    });
+    const definitions = asArray(asObject(output.evidence.find(item => item.operation === 'securityRatePolicies')?.data)['ratePolicies']).map(asObject);
+    const actions = asArray(asObject(output.evidence.find(item => item.operation === 'securityRatePolicyActions')?.data)['ratePolicyActions']).map(asObject);
+    const id = (row: JsonObject) => {
+      const value = row['id'] ?? row['ratePolicyId'];
+      return typeof value === 'number' || typeof value === 'string' ? String(value) : null;
+    };
+    output.inferences.push({ kind: 'rate_limiting_configuration_overview', configId: ref.configId, policyId: ref.policyId ?? null, version: selected.version, environment: ref.environment, runtimeVerified: false, endpointApplicabilityEvaluated: false,
+      associationBasis: 'ID_NOT_ARRAY_POSITION', actionsConsulted: output.evidence.some(item => item.operation === 'securityRatePolicyActions'),
+      pageAssociations: definitions.map(definition => ({ ratePolicyId: id(definition), action: actions.find(action => id(definition) !== null && id(action) === id(definition))?.['action'] ?? null })),
+      limitation: 'Relaciona somente as páginas retornadas. Ação ausente nesta página não comprova ausência de ação. Controles, critérios e match targets ainda precisam ser interpretados.',
     });
     output.limitations.push('Existência de rate policy não comprova aplicação ao endpoint. Cruze ações, controles habilitados, critérios e match targets; sem policyId as ações não são consultadas.');
     return output;
   }
 
-  async activations(ref: { configId: number; environment?: 'PRODUCTION' | 'STAGING' | undefined } & Page, context: InvestigationContext): Promise<InvestigationResult> {
+  async activations(ref: { configId: number; environment?: 'PRODUCTION' | 'STAGING' | undefined } & Page & TimeWindow, context: InvestigationContext): Promise<InvestigationResult> {
     const reply = await this.reader.read('securityActivations', { configId: ref.configId }, {}, context);
     const history = asObject(reply.data)['activationHistory'];
     if (!Array.isArray(history)) throw new InvestigationError('INVALID_RESPONSE', 'API não retornou activationHistory.');
     const entries = history.filter(item => !ref.environment || asObject(item)['network'] === ref.environment);
-    const page = localPage(entries, ref, this.settings.maxResults);
-    const item = apiEvidence(reply, { configId: ref.configId, environment: ref.environment ?? 'BOTH' }, page.items);
-    item.pagination = page.pagination;
-    return result([item], ['Histórico de ativações de segurança; status e horário não devem ser confundidos com ativações de CDN.']);
+    const filtered = filterTimeWindow(entries, ref);
+    const page = localPage(filtered.entries, ref, this.settings.maxResults);
+    const item = apiEvidence(reply, { configId: ref.configId, environment: ref.environment ?? 'BOTH', fromTime: ref.fromTime ?? null, toTime: ref.toTime ?? null }, page.items);
+    item.pagination = { ...page.pagination, timeFilterAppliedBeforePagination: true, unknownTimestampCount: filtered.unknownTimestampCount };
+    return result([item], ['Histórico de ativações de segurança; status e horário não devem ser confundidos com ativações de CDN.', 'Registros sem horário válido são preservados, mas não comprovam ocorrência dentro da janela informada.']);
   }
 
   async compare(ref: { configId: number; fromVersion: number; toVersion: number } & Page, context: InvestigationContext): Promise<InvestigationResult> {
@@ -124,7 +139,7 @@ export class SecurityInvestigation {
     const item = apiEvidence(after, { configId: ref.configId, fromVersion: ref.fromVersion, toVersion: ref.toVersion }, { ...diff, fromRetrievedAt: before.retrievedAt, toRetrievedAt: after.retrievedAt });
     item.operation = 'securityExport × 2; structural comparison';
     item.pagination = asObject(diff['pagination']);
-    return result([item], ['Export síncrono GET documentado; nenhum job assíncrono é criado. Diff inclui metadados e não comprova efeito operacional. Export pode ser restrito ou indisponível para seu contrato.']);
+    return { ...result([item], ['Export síncrono GET documentado; nenhum job assíncrono é criado. Diff inclui metadados e não comprova efeito operacional. Export pode ser restrito ou indisponível para seu contrato.']), inferences: [{ kind: 'configuration_comparison_overview', api: 'Application Security', configId: ref.configId, ...asObject(diff['summary']) }] };
   }
 
   private resource(ref: SecuritySelection, version: number): JsonObject {
@@ -135,7 +150,7 @@ export class SecurityInvestigation {
     if (!arrayKey) return result([apiEvidence(reply, resource)]);
     const data = asObject(reply.data);
     const entries = data[arrayKey];
-    if (!Array.isArray(entries)) return result([apiEvidence(reply, resource)], [`Formato sem array ${arrayKey}; resposta original preservada, sem paginação local.`]);
+    if (!Array.isArray(entries)) throw new InvestigationError('INVALID_RESPONSE', `Resposta sem o array esperado ${arrayKey}; não comprova ausência da configuração.`, { api: reply.api, operation: reply.operation });
     const sliced = localPage(entries, page, this.settings.maxResults);
     const item = apiEvidence(reply, resource, { ...data, [arrayKey]: sliced.items });
     item.pagination = sliced.pagination;
