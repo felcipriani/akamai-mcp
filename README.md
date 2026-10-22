@@ -2,13 +2,13 @@
 
 Servidor [Model Context Protocol](https://modelcontextprotocol.io/) para investigar configurações de CDN, políticas de segurança e configurações WAF da Akamai a partir de clientes e agentes compatíveis com MCP.
 
-Oferece **18 ferramentas de leitura**, com autenticação EdgeGrid e transporte stdio. As consultas utilizam Property Manager API, Application Security API e Akamai TechDocs.
+Oferece **17 ferramentas de leitura**, com autenticação EdgeGrid e transporte stdio. As consultas utilizam Property Manager API, Application Security API e Akamai TechDocs.
 
 ## Capacidades
 
 | Área | O que o servidor permite consultar |
 | --- | --- |
-| CDN e Property Manager | Properties por hostname, versões de produção e staging, árvores de regras, behaviors, diferenças entre versões e histórico de ativações |
+| CDN e Property Manager | Inventário de properties por contrato/grupo, confirmação de hostnames, versões de produção e staging, árvores de regras, behaviors, diferenças entre versões e histórico de ativações |
 | Application Security | Configurações, políticas, match targets, ações WAF, custom rules e políticas de rate limiting |
 | Investigação | Visão de um hostname e comparação de mudanças de configuração |
 | Documentação | Busca nos índices e leitura de páginas oficiais de Property Manager e Application Security |
@@ -40,6 +40,8 @@ Sem credenciais, a conexão MCP e as ferramentas de documentação pública cont
 - Comparar duas versões da árvore de regras e localizar mudanças em origin, cache e headers.
 - Consultar ações WAF e rate policies associadas a uma política de segurança.
 - Reunir diferenças e ativações de configuração no período de um incidente.
+
+Para identificar a property de um hostname, o agente recebe instruções na conexão MCP: percorrer `list_properties`, confirmar as referências com `get_hostname_overview` e consultar as regras da versão ativa. O [procedimento completo](docs/tools.md#identificar-a-property-de-um-hostname) descreve paginação, escopos e confirmação por ambiente. Todas as consultas autenticadas utilizam GET.
 
 ## Resultados
 

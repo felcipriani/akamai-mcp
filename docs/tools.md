@@ -1,6 +1,6 @@
 # Ferramentas MCP
 
-Catálogo de **18 ferramentas MCP**. Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
+Catálogo de **17 ferramentas MCP**. Schemas efetivos estão em `src/mcp/schemas.ts`; respostas seguem [architecture.md](architecture.md). Operações HTTP permitidas estão em `src/domain/read-policy.ts`, e contratos em [apis.md](apis.md).
 
 ## Convenções de argumentos
 
@@ -21,16 +21,37 @@ Não se aceita host de API, método HTTP, path de API, header, credencial ou acc
 | Ferramenta | Argumentos | Responsabilidade/API | Limitações |
 | --- | --- | --- | --- |
 | `list_properties` | contractId+groupId opcionais juntos, scopeOffset=0, paginação no servidor | GET PAPI groups e properties. Sem par explícito, descobre escopos e lê um par selecionado | nextOffset pagina o par; nextScopeOffset avança o catálogo. Descoberta pode mudar entre chamadas |
-| `find_property_by_hostname` | hostname, paginação no servidor | POST PAPI search/find-by-value com corpo fixo {hostname} | Resultados candidatos de versões ativas/última; confirme associação no ambiente |
 | `get_active_property_version` | referência property | GET PAPI property; latestVersion, productionVersion e stagingVersion | Sem fallback para latest se ambiente não ativo |
 | `list_property_versions` | referência property, offset, limit | GET PAPI versions com paginação remota | nextLink é evidência, nunca executado como URL pelo servidor. Use seus parâmetros documentados na próxima consulta |
 | `get_property_configuration` | seleção property, subtreePointer | GET PAPI rules, validateRules=false | Árvore, behaviors, origin/cache/TTL/headers e ruleFormat. Sem avaliação runtime; bytes da árvore completa continuam sujeitos ao teto HTTP |
 | `compare_property_versions` | referência property, fromVersion, toVersion, subtreePointer, paginação no servidor | Duas leituras PAPI rules e diff estrutural | Arrays ordenados, metadados/ruleFormat e versões editáveis podem afetar diff; sem snapshot atômico |
 | `get_property_activation_history` | referência property, environment opcional, paginação no servidor | GET PAPI activations | Inclui tentativas/status; submitDate não prova horário de conclusão |
 | `explain_cdn_behavior` | seleção property, hostname, path, behaviorNames=[], paginação no servidor | GET PAPI rules; behaviors com pointers e todos os critérios ancestrais | hostname/path são contexto. Não seleciona automaticamente regras por path, não calcula TTL nem origin efetivo |
-| `get_hostname_overview` | hostname, environment PRODUCTION/STAGING, configIds=[], paginação no servidor | Reutiliza busca/metadata/hostnames PAPI e catálogo/selected-hostnames/match-targets AppSec | Até 5 properties e 5 configs; sem configIds usa catálogo inicial e productionHostnames para produção. Staging pode apresentar candidatos sem associação confirmada |
+| `get_hostname_overview` | hostname, properties=[], environment PRODUCTION/STAGING, configIds=[], paginação no servidor | GET metadata e hostnames PAPI das referências informadas; catálogo/selected-hostnames/match-targets AppSec | Até 5 referências property por chamada, cada uma com propertyId e contractId/groupId opcionais. Sem properties, consulta apenas segurança. Até 5 configs; sem configIds usa catálogo inicial e productionHostnames para produção. Staging pode apresentar candidatos sem associação confirmada |
 
 Origin, cache, TTL e headers estão na árvore e nos behaviors selecionados. O cliente deve interpretar critérios e ordem com documentação; essas ferramentas não respondem por um modelo interno.
+
+### Identificar a property de um hostname
+
+O servidor envia este procedimento nas instruções da conexão MCP e nas descrições de `list_properties` e `get_hostname_overview`:
+
+1. Chame `list_properties` com `scopeOffset=0` e `offset=0`. Se já souber o contrato e o grupo, informe `contractId` e `groupId` juntos.
+2. Percorra `evidence[].pagination.nextOffset` no mesmo escopo. Ao terminar, avance para `nextScopeOffset`, reiniciando `offset=0`; sem contrato/grupo explícitos, a ferramenta descobre os escopos acessíveis.
+3. Preserve `propertyId`, `contractId` e `groupId`, obtendo o par de escopo em `evidence[].resource` quando necessário. Nomes de properties servem para priorizar candidatas; podem ser diferentes do hostname.
+4. Envie até cinco referências por chamada para `get_hostname_overview`, informando o hostname e o ambiente. Verifique `cnameFrom` e a versão do ambiente na evidência `propertyHostnames`. Sem referências, a ferramenta não consulta associações CDN.
+5. Com a associação confirmada, consulte `get_active_property_version` e `get_property_configuration` ou `explain_cdn_behavior` usando a mesma referência e ambiente. Para cache, examine os behaviors e seus critérios ancestrais e percorra as páginas retornadas.
+
+Exemplo de argumentos para confirmar uma candidata identificada na listagem:
+
+```json
+{
+  "hostname": "api.example.com",
+  "environment": "PRODUCTION",
+  "properties": [{ "propertyId": "prp_123", "contractId": "ctr_1", "groupId": "grp_1" }]
+}
+```
+
+Para concluir ausência no inventário acessível, percorra todos os escopos e páginas e confirme o hostname nas properties, inclusive nas que têm nomes diferentes. Falhas de permissão ou consultas interrompidas deixam a cobertura parcial. `latestVersion` não substitui a versão ativa de produção ou staging; regras configuradas não comprovam HIT/MISS em execução. O cliente MCP precisa disponibilizar as instruções do servidor ao agente para que elas orientem seu planejamento.
 
 ## Application Security e WAF
 

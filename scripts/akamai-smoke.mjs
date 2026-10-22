@@ -35,8 +35,10 @@ async function main() {
     const candidate = asObject(asArray(listing?.evidence[0]?.data)[0]);
     const propertyId = stringValue(candidate.propertyId);
     let hostname = null;
+    const propertyRefs = [];
     if (propertyId) {
       const ref = { propertyId, contractId: stringValue(candidate.contractId) ?? undefined, groupId: stringValue(candidate.groupId) ?? undefined };
+      propertyRefs.push(ref);
       const active = await check('papi_active_versions', () => properties.active(ref, context));
       const productionVersion = asObject(active?.evidence[0]?.data).productionVersion;
       await check('papi_versions', () => properties.versions({ ...ref, offset: 0, limit: 1 }, context));
@@ -49,7 +51,6 @@ async function main() {
         });
         hostname = stringValue(asObject(asArray(asObject(hostnames?.evidence[0]?.data).hostnames?.items)[0]).cnameFrom);
         if (hostname) {
-          await check('papi_hostname_search', () => properties.find(hostname, { offset: 0, limit: 1 }, context));
           await check('papi_hostname_association', () => properties.hostnameAssociation({ ...ref, hostname, environment: 'PRODUCTION' }, context));
         }
       }
@@ -68,7 +69,7 @@ async function main() {
           await check('appsec_policy_and_rules', () => security.policy({ configId, policyId, environment: 'PRODUCTION', sections: ['policy', 'waf_rules'], offset: 0, limit: 1 }, context));
           await check('appsec_rate_limits', () => security.rateLimiting({ configId, policyId, environment: 'PRODUCTION', offset: 0, limit: 1 }, context));
         }
-        if (hostname) await check('combined_hostname_overview', () => operation.hostname({ hostname, environment: 'PRODUCTION', configIds: [configId], offset: 0, limit: 1 }, context));
+        if (hostname) await check('combined_hostname_overview', () => operation.hostname({ hostname, environment: 'PRODUCTION', properties: propertyRefs, configIds: [configId], offset: 0, limit: 1 }, context));
       }
     }
   }

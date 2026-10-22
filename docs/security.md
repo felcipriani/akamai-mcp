@@ -8,7 +8,7 @@ Cada processo utiliza uma configuração de credenciais. O acesso ao ambiente e 
 
 ## Operações permitidas
 
-O catálogo em `src/domain/read-policy.ts` define rotas, parâmetros e métodos aceitos. Todas as consultas autenticadas utilizam GET, exceto a busca PAPI por hostname, que utiliza POST `/papi/v1/search/find-by-value` com corpo fixo `{hostname}` e não altera configuração.
+O catálogo em `src/domain/read-policy.ts` define rotas, parâmetros e métodos aceitos. Todas as consultas autenticadas utilizam GET. A identificação de properties utiliza o inventário por contrato/grupo e a confirmação da associação do hostname no ambiente solicitado.
 
 Não há ferramenta de criação, ativação, edição, exclusão, purge ou administração. As annotations MCP declaram o caráter de leitura; a restrição efetiva está na construção das requisições. Identificadores e parâmetros adicionais são validados antes do envio.
 

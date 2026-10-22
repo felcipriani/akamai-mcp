@@ -10,13 +10,11 @@ globalThis.fetch = async (input, init) => {
   if (url.hostname === 'techdocs.akamai.com') return new Response(url.pathname.endsWith('llms.txt')
     ? '[Property rules](https://techdocs.akamai.com/property-mgr/reference/get-property-version-rules.md): rules and caching'
     : process.env.FIXTURE_LARGE_DOC ? 'x'.repeat(20000) : '# Rules\nDocumented rules and caching.');
+  if (init?.method !== 'GET') throw new Error('Fixture allows only GET');
   const path = url.pathname;
   let data = {};
   if (path === '/papi/v1/groups') data = { groups: { items: [{ groupId: 'grp_1', contractIds: ['ctr_1'] }] } };
-  else if (path.endsWith('/search/find-by-value')) {
-    if (init?.method !== 'POST' || Object.keys(JSON.parse(init.body)).join() !== 'hostname') throw new Error('Invalid search contract');
-    data = { versions: { items: [{ propertyId: 'prp_123', contractId: 'ctr_1', groupId: 'grp_1', propertyVersion: 2 }] } };
-  } else if (path === '/papi/v1/properties' || /^\/papi\/v1\/properties\/prp_\d+$/.test(path)) data = { properties: { items: [{ propertyId: 'prp_123', propertyName: 'fixture', latestVersion: 3, productionVersion: 2, stagingVersion: 3 }] } };
+  else if (path === '/papi/v1/properties' || /^\/papi\/v1\/properties\/prp_\d+$/.test(path)) data = { properties: { items: [{ propertyId: 'prp_123', propertyName: 'fixture', latestVersion: 3, productionVersion: 2, stagingVersion: 3 }] } };
   else if (path.endsWith('/rules') && path.startsWith('/papi/')) data = { ruleFormat: 'latest', rules: { name: 'default', criteria: [], behaviors: [{ name: 'origin', options: { hostname: 'origin.example.com', apiKey: 'should-be-redacted' } }, { name: 'caching', options: { ttl: path.includes('/1/') ? 30 : 60 } }], children: [] } };
   else if (path.endsWith('/versions') && path.startsWith('/papi/')) data = { versions: { items: [{ propertyVersion: 1 }, { propertyVersion: 2 }] } };
   else if (path.endsWith('/hostnames')) data = { hostnames: { items: [{ cnameFrom: 'example.com', productionVersion: 2 }] } };

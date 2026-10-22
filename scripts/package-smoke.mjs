@@ -44,7 +44,7 @@ try {
       await client.connect(transport);
       assert.deepEqual(client.getServerVersion(), { name: manifest.name, version: manifest.version });
       const list = await client.listTools();
-      assert.equal(list.tools.length, 18);
+      assert.equal(list.tools.length, 17);
       const reply = await client.callTool({ name: 'get_active_property_version', arguments: { propertyId: 'prp_123' } });
       assert.equal(reply.isError, true);
       assert.ok(JSON.stringify(reply.structuredContent).includes('CONFIGURATION_ERROR'));

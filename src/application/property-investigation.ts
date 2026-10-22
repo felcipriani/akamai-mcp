@@ -63,14 +63,6 @@ export class PropertyInvestigation {
     return result([item]);
   }
 
-  async find(hostname: string, page: Page, context: InvestigationContext): Promise<InvestigationResult> {
-    const reply = await this.reader.read('propertySearch', {}, {}, context, hostname);
-    const sliced = localPage(nestedItems(reply.data, 'versions'), page, this.settings.maxResults);
-    const item = apiEvidence(reply, { hostname }, sliced.items);
-    item.pagination = sliced.pagination;
-    return result([item], ['Busca documentada contempla versões ativas e a última inativa. Não é inventário de todos os hostnames históricos; resultados devem ser confirmados no ambiente desejado.']);
-  }
-
   async active(ref: PropertyRef, context: InvestigationContext): Promise<InvestigationResult> {
     const reply = await this.reader.read('property', { propertyId: ref.propertyId }, this.scopeQuery(ref), context);
     const property = nestedItems(reply.data, 'properties')[0];

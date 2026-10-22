@@ -10,7 +10,7 @@ npm run smoke:package
 
 `check` executa a verificação de tipos, lint, build e testes. A suíte utiliza fixtures, HTTP em loopback e sessões MCP por stdio, sem consultas à conta Akamai. As fontes dos dados de teste estão em [test/fixtures](test/fixtures/README.md).
 
-`smoke:package` compila, gera um tarball temporário e o executa via `npx`, conferindo o conteúdo do pacote, a versão anunciada, os dois protocolos MCP suportados e as 18 ferramentas. Não repassa credenciais Akamai ao subprocesso. A instalação de dependências pode consultar o registro npm.
+`smoke:package` compila, gera um tarball temporário e o executa via `npx`, conferindo o conteúdo do pacote, a versão anunciada, os dois protocolos MCP suportados e as 17 ferramentas. Não repassa credenciais Akamai ao subprocesso. A instalação de dependências pode consultar o registro npm.
 
 ## Código-fonte
 

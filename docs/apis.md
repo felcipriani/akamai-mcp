@@ -12,7 +12,6 @@ Prefixo `/papi/v1`; `PAPI-Use-Prefixes: true`; `accountSwitchKey` opcional, fixa
 | --- | --- |
 | GET `/groups` | Descobre groupId e contractIds; pares ordenados para seleção de escopo |
 | GET `/properties?contractId=…&groupId=…` | Lista no escopo; resposta `properties.items`. Sem paginação remota nessa operação; paginação no servidor |
-| POST `/search/find-by-value` | Corpo exclusivamente `{hostname}`. Busca documentada, sem mutação. Resposta `versions.items` |
 | GET `/properties/{propertyId}` | `properties.items`, IDs e latestVersion/productionVersion/stagingVersion independentes |
 | GET `/properties/{propertyId}/versions?offset=…&limit=…` | Histórico de versões paginado pelo PAPI |
 | GET `/properties/{propertyId}/versions/{version}/rules?validateRules=false` | Árvore completa, ruleFormat e behaviors; sem solicitar validação de rules |
@@ -24,7 +23,9 @@ Prefixo `/papi/v1`; `PAPI-Use-Prefixes: true`; `accountSwitchKey` opcional, fixa
 
 Também foi identificado GET `/properties/{propertyId}/versions/latest?activatedOn=PRODUCTION|STAGING`, mas a implementação lê os três campos da própria property para evitar três consultas e preservar sua relação no retorno. A comparação lê duas árvores `rules` e calcula o diff estrutural em memória; não chama bulk update, patch ou endpoint fictício de diff de rules.
 
-Origin, caching, TTL e headers são obtidos dos behaviors dentro da árvore. Behaviors disponíveis e schemas variam por produto/ruleFormat. A leitura não transforma todas as condições em um motor de execução. Critérios desconhecidos, ordenação, herança, includes e comportamentos externos permanecem relevantes. Fontes: [resumo PAPI](https://techdocs.akamai.com/property-mgr/reference/api-summary), [busca de properties](https://techdocs.akamai.com/property-mgr/reference/post-search-find-by-value), [consulta de property](https://techdocs.akamai.com/property-mgr/reference/get-property) e [rules](https://techdocs.akamai.com/property-mgr/reference/get-property-version-rules).
+Para identificar uma property, liste grupos e properties e confirme a associação do hostname por ambiente nas referências identificadas, conforme o [procedimento das ferramentas](tools.md#identificar-a-property-de-um-hostname). Todas as operações PAPI implementadas utilizam GET.
+
+Origin, caching, TTL e headers são obtidos dos behaviors dentro da árvore. Behaviors disponíveis e schemas variam por produto/ruleFormat. A leitura não transforma todas as condições em um motor de execução. Critérios desconhecidos, ordenação, herança, includes e comportamentos externos permanecem relevantes. Fontes: [resumo PAPI](https://techdocs.akamai.com/property-mgr/reference/api-summary), [consulta de property](https://techdocs.akamai.com/property-mgr/reference/get-property) e [rules](https://techdocs.akamai.com/property-mgr/reference/get-property-version-rules).
 
 ## Application Security API
 

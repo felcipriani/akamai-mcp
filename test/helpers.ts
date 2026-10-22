@@ -18,12 +18,12 @@ export function context(overrides: Partial<Settings> = {}, signal = new AbortCon
 export function code(expected: string): (error: unknown) => boolean {
   return error => error instanceof InvestigationError && error.code === expected;
 }
-export interface ReadCall { operation: Operation; parameters: Parameters; query: Query; hostname?: string | undefined }
+export interface ReadCall { operation: Operation; parameters: Parameters; query: Query }
 export class FixtureReader implements AkamaiReader {
   readonly calls: ReadCall[] = [];
   constructor(private readonly fixture: (call: ReadCall) => JsonValue | Error) {}
-  async read(operation: Operation, parameters: Parameters, query: Query, _context: InvestigationContext, hostname?: string): Promise<ApiReply> {
-    const call = { operation, parameters, query, hostname };
+  async read(operation: Operation, parameters: Parameters, query: Query, _context: InvestigationContext): Promise<ApiReply> {
+    const call = { operation, parameters, query };
     this.calls.push(call);
     const value = this.fixture(call);
     if (value instanceof Error) throw value;

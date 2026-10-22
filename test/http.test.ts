@@ -50,16 +50,17 @@ test('Malformed JSON does not masquerade as a success', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('<html>bad</html>'));
   await assert.rejects(new AkamaiClient(configuration).read('propertyGroups', {}, {}, context()), code('INVALID_RESPONSE'));
 });
-test('Akamai URL, POST body and fixed PAPI headers match the closed contract', async t => {
+test('Akamai GET requests and fixed PAPI headers match the closed contract', async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('{}'));
   const client = new AkamaiClient({ ...configuration, settings: { ...settings, accountSwitchKey: 'account:1' } });
-  await client.read('propertySearch', {}, {}, context(), 'example.com');
+  await client.read('propertyHostnames', { propertyId: 'prp_123' }, { hostname: 'example.com', network: 'PRODUCTION' }, context());
   await client.read('propertyRules', { propertyId: 'prp_123', version: 2 }, { contractId: 'ctr_1' }, context());
   await client.read('propertyVersionHostnames', { propertyId: 'prp_123', version: 2 }, {}, context());
   const first = fetch.mock.calls[0]?.arguments;
   assert.ok(first);
-  assert.equal(first[1]?.body, '{"hostname":"example.com"}');
-  assert.equal(first[1]?.method, 'POST');
+  assert.equal(first[1]?.body, undefined);
+  assert.equal(new URL(String(first[0])).searchParams.get('hostname'), 'example.com');
+  assert.equal(first[1]?.method, 'GET');
   assert.equal(first[1]?.redirect, 'manual');
   assert.equal(new Headers(first[1]?.headers).get('PAPI-Use-Prefixes'), 'true');
   const second = new URL(String(fetch.mock.calls[1]?.arguments[0]));

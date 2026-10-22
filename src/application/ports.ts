@@ -12,7 +12,7 @@ export interface ApiReply {
 }
 
 export interface AkamaiReader {
-  read(operation: Operation, parameters: Parameters, query: Query, context: InvestigationContext, hostname?: string): Promise<ApiReply>;
+  read(operation: Operation, parameters: Parameters, query: Query, context: InvestigationContext): Promise<ApiReply>;
 }
 
 export type DocumentationProduct = 'property-mgr' | 'application-security';

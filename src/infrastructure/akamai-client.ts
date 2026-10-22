@@ -16,8 +16,8 @@ export class AkamaiClient implements AkamaiReader {
     this.http = new BoundedHttpClient(configuration.settings);
   }
 
-  async read(operation: Operation, parameters: Parameters, query: Query, context: InvestigationContext, hostname?: string): Promise<ApiReply> {
-    const request = permittedRequest(operation, parameters, query, hostname);
+  async read(operation: Operation, parameters: Parameters, query: Query, context: InvestigationContext): Promise<ApiReply> {
+    const request = permittedRequest(operation, parameters, query);
     const credentials = this.configuration.credentials;
     if (!credentials) throw new InvestigationError('CONFIGURATION_ERROR', 'Credenciais Akamai não configuradas. Configure pelo ambiente seguro; documentação pública e protocolo MCP permanecem disponíveis.');
     const url = new URL(request.path, `https://${credentials.host}`);

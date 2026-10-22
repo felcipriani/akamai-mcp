@@ -33,17 +33,16 @@ test('No credentials enables local MCP; partial or invalid credentials fail safe
 for (const value of ['https://example.com', '*.example.com', '-bad.example.com', 'example.com:443', '', 'a'.repeat(254), 'a'.repeat(64) + '.com']) test(`Hostname rejects ${value.slice(0, 35)}`, () => assert.equal(schemas.hostname.safeParse(value).success, false));
 test('Hostname IDNA and defaults', () => {
   assert.equal(schemas.hostname.parse('BÜCHER.Example.'), 'xn--bcher-kva.example');
-  assert.deepEqual(schemas.propertyFindSchema.parse({ hostname: 'EXAMPLE.COM' }), { hostname: 'example.com', offset: 0, limit: 50 });
+  assert.deepEqual(schemas.hostnameOverviewSchema.parse({ hostname: 'EXAMPLE.COM' }), { hostname: 'example.com', offset: 0, limit: 50, environment: 'PRODUCTION', properties: [], configIds: [] });
 });
 for (const input of [{ propertyId: '../123' }, { propertyId: 'abc' }, { propertyId: 'prp_0' }, {}, { propertyId: 'prp_1', version: 0 }, { propertyId: 'prp_1', limit: 0 }, { propertyId: 'prp_1', limit: 501 }, { propertyId: 'prp_1', offset: -1 }, { propertyId: 'prp_1', url: 'https://evil.test' }]) test(`Property schema rejects ${JSON.stringify(input)}`, () => assert.equal(schemas.propertyCompareSchema.safeParse({ fromVersion: 1, toVersion: 2, ...input }).success, false));
 for (const configId of [0, -1, 1.2, '123', Number.MAX_SAFE_INTEGER + 1]) test(`Configuration id rejects ${configId}`, () => assert.equal(schemas.securityActiveSchema.safeParse({ configId }).success, false));
 test('Change investigation rejects inverted ISO interval', () => assert.equal(schemas.configurationChangeSchema.safeParse({ security: { configId: 1, fromVersion: 1, toVersion: 2 }, fromTime: '2026-10-09T12:00:00Z', toTime: '2026-10-08T12:00:00Z' }).success, false));
 test('Read policy blocks route injection, inherited names, administrative operations and query overrides', () => {
-  for (const operation of ['activate', 'securityEvents', '__proto__', 'constructor', 'toString']) assert.throws(() => permittedRequest(operation as Operation, {}, {}), code('OPERATION_NOT_ALLOWED'));
+  for (const operation of ['activate', 'securityEvents', 'propertySearch', '__proto__', 'constructor', 'toString']) assert.throws(() => permittedRequest(operation as Operation, {}, {}), code('OPERATION_NOT_ALLOWED'));
   assert.throws(() => permittedRequest('property', { propertyId: '../1' }, {}), code('INVALID_INPUT'));
   assert.throws(() => permittedRequest('securityConfiguration', { configId: 0 }, {}), code('INVALID_INPUT'));
   assert.throws(() => permittedRequest('propertyRules', { propertyId: 'prp_1', version: 1 }, { validateRules: true }), code('OPERATION_NOT_ALLOWED'));
-  assert.equal(permittedRequest('propertySearch', {}, {}, 'example.com').body, '{"hostname":"example.com"}');
   assert.equal(permittedRequest('securityExport', { configId: 1, version: 2 }, {}).method, 'GET');
 });
 test('Structural diff ignores object key order and preserves array order and escaped pointers', () => {

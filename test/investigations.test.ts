@@ -20,18 +20,23 @@ test('Property production, staging and latest remain distinct; absent active has
   const absent = new PropertyInvestigation(new FixtureReader(() => ({ properties: { items: [{ latestVersion: 8 }] } })), settings);
   await assert.rejects(absent.resolveVersion(property, context()), code('NOT_FOUND'));
 });
-test('Property scope and hostname candidates preserve pagination and multiple properties', async () => {
+test('Property inventory preserves pagination within and across scopes', async () => {
   const reader = new FixtureReader(call => call.operation === 'propertyGroups' ? { groups: { items: [{ groupId: 'grp_1', contractIds: ['ctr_1', 'ctr_2'] }] } } : call.operation === 'properties' ? { properties: { items: [{ propertyId: 'prp_1' }, { propertyId: 'prp_2' }] } } : { versions: { items: [{ propertyId: 'prp_1' }, { propertyId: 'prp_2' }] } });
   const properties = new PropertyInvestigation(reader, settings);
   const listing = await properties.list({ offset: 0, limit: 1, scopeOffset: 0 }, context());
   assert.equal(listing.evidence[0]?.pagination.nextOffset, 1);
   assert.equal(listing.evidence[0]?.pagination.nextScopeOffset, 1);
-  assert.equal((await properties.find('example.com', page, context())).evidence[0]?.pagination.total, 2);
+  const nextPage = await properties.list({ offset: 1, limit: 1, scopeOffset: 0 }, context());
+  assert.equal(nextPage.evidence[0]?.pagination.nextOffset, null);
+  assert.equal(nextPage.evidence[0]?.pagination.nextScopeOffset, 1);
+  const nextScope = await properties.list({ offset: 0, limit: 1, scopeOffset: 1 }, context());
+  assert.equal(nextScope.evidence[0]?.resource.contractId, 'ctr_2');
+  assert.equal(nextScope.evidence[0]?.pagination.nextScopeOffset, null);
   await assert.rejects(properties.list({ ...page, scopeOffset: 0, contractId: 'ctr_1' }, context()), code('INVALID_INPUT'));
 });
 test('Missing PAPI arrays are rejected rather than reported as no properties', async () => {
   const properties = new PropertyInvestigation(new FixtureReader(() => ({})), settings);
-  await assert.rejects(properties.find('example.com', page, context()), code('INVALID_RESPONSE'));
+  await assert.rejects(properties.list({ ...page, scopeOffset: 0 }, context()), code('INVALID_RESPONSE'));
   await assert.rejects(properties.activations({ ...property, ...page }, context()), code('INVALID_RESPONSE'));
 });
 test('Security versions are independent of property versions and independent sections survive policy discovery', async () => {
@@ -63,10 +68,26 @@ test('Scenario C: activation in window and config diff do not establish causalit
   assert.ok(result.limitations.some(text => text.includes('sem determinar causa')));
 });
 test('Scenario D: management API 403 keeps other sources and does not imply application blockage', async () => {
-  const reader = new FixtureReader(call => call.operation === 'propertySearch' ? { versions: { items: [{ propertyId: 'prp_1' }, { propertyId: 'prp_2' }] } } : call.operation === 'property' ? { properties: { items: [{ propertyId: String(call.parameters.propertyId), productionVersion: 2 }] } } : call.operation === 'propertyHostnames' ? { hostnames: { items: [] } } : new InvestigationError('PERMISSION_DENIED', 'No AppSec permission'));
-  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', configIds: [1], ...page }, context());
-  assert.equal(result.status, 'partial'); assert.equal(result.evidence.length, 5);
+  const reader = new FixtureReader(call => call.operation === 'property' ? { properties: { items: [{ propertyId: String(call.parameters.propertyId), productionVersion: 2 }] } } : call.operation === 'propertyHostnames' ? { hostnames: { items: [] } } : new InvestigationError('PERMISSION_DENIED', 'No AppSec permission'));
+  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', properties: [{ propertyId: 'prp_1' }, { propertyId: 'prp_2' }], configIds: [1], ...page }, context());
+  assert.equal(result.status, 'partial'); assert.equal(result.evidence.length, 4);
   assert.equal(asObject(result.unavailable[0]?.error).code, 'PERMISSION_DENIED');
+});
+test('Hostname overview verifies only supplied property references and the requested network', async () => {
+  const reader = new FixtureReader(call => {
+    if (call.operation === 'property') return { properties: { items: [{ propertyId: String(call.parameters.propertyId), productionVersion: 2, stagingVersion: 3 }] } };
+    if (call.operation === 'propertyHostnames') return { hostnames: { items: [] } };
+    return new InvestigationError('PERMISSION_DENIED', 'No AppSec permission');
+  });
+  const ref = { propertyId: 'prp_1', contractId: 'ctr_1', groupId: 'grp_1' };
+  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'STAGING', properties: [ref], configIds: [1], ...page }, context());
+  const calls = reader.calls.filter(call => call.operation === 'property' || call.operation === 'propertyHostnames');
+  assert.equal(calls.length, 2);
+  assert.ok(calls.every(call => call.parameters.propertyId === ref.propertyId && call.query.contractId === ref.contractId && call.query.groupId === ref.groupId));
+  assert.equal(calls[1]?.query.network, 'STAGING');
+  assert.equal(calls[1]?.query.hostname, 'example.com');
+  assert.equal(result.inferences.length, 0);
+  assert.deepEqual(asObject(result.evidence[1]?.data).hostnames, { items: [] });
 });
 test('Document catalog ranking, partial index failure and character paging', async () => {
   const docs = new DocumentationInvestigation({
@@ -81,7 +102,6 @@ test('Document catalog ranking, partial index failure and character paging', asy
 
 test('Hostname discovery normalizes production associations before reading security targets', async () => {
   const reader = new FixtureReader(call => {
-    if (call.operation === 'propertySearch') return { versions: { items: [] } };
     if (call.operation === 'securityConfigurations') return { configurations: [
       { id: 1, productionHostnames: ['EXAMPLE.COM.:443'] },
       { id: 2, productionHostnames: ['other.example.com'] },
@@ -91,8 +111,10 @@ test('Hostname discovery normalizes production associations before reading secur
     if (call.operation === 'securityMatchTargets') return { matchTargets: [] };
     throw new Error('Unexpected operation');
   });
-  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', configIds: [], ...page }, context());
+  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', properties: [], configIds: [], ...page }, context());
   assert.equal(result.status, 'success');
+  assert.ok(reader.calls.every(call => call.operation.startsWith('security')));
+  assert.ok(result.limitations.some(text => text.includes('Nenhuma property informada')));
   const targets = reader.calls.filter(call => call.operation === 'securityMatchTargets');
   assert.equal(targets.length, 1);
   assert.equal(targets[0]?.parameters.configId, 1);

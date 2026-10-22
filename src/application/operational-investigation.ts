@@ -16,21 +16,13 @@ export class OperationalInvestigation {
     private readonly settings: Settings,
   ) {}
 
-  async hostname(input: { hostname: string; environment: 'PRODUCTION' | 'STAGING'; offset: number; limit: number; configIds: number[] }, context: InvestigationContext): Promise<InvestigationResult> {
+  async hostname(input: { hostname: string; environment: 'PRODUCTION' | 'STAGING'; offset: number; limit: number; properties: PropertyRef[]; configIds: number[] }, context: InvestigationContext): Promise<InvestigationResult> {
     const output = result([]);
-    await collect(output, 'property_search', { hostname: input.hostname }, context, async () => this.properties.find(input.hostname, input, context));
-    const search = output.evidence.find(item => item.operation === 'propertySearch');
-    const ids = new Map<string, PropertyRef>();
-    for (const item of asArray(search?.data)) {
-      const candidate = asObject(item);
-      const propertyId = stringValue(candidate['propertyId']);
-      if (propertyId) ids.set(propertyId, { propertyId, contractId: stringValue(candidate['contractId']) ?? undefined, groupId: stringValue(candidate['groupId']) ?? undefined });
-    }
-    for (const ref of [...ids.values()].slice(0, 5)) {
+    for (const ref of input.properties.slice(0, 5)) {
       await collect(output, 'property_version', { propertyId: ref.propertyId }, context, () => this.properties.active(ref, context));
       await collect(output, 'active_hostname_association', { propertyId: ref.propertyId }, context, () => this.properties.hostnameAssociation({ ...ref, hostname: input.hostname, environment: input.environment }, context));
     }
-    if (ids.size > 5) output.limitations.push('Consolidação limitada a 5 properties. Use find_property_by_hostname para as demais.');
+    if (!input.properties.length) output.limitations.push('Nenhuma property informada; a associação CDN não foi consultada. Use list_properties, percorra nextOffset e nextScopeOffset e informe as referências em properties para confirmar o hostname no ambiente.');
     let securityConfigs = input.configIds;
     if (!securityConfigs.length) {
       await collect(output, 'security_configurations', { hostname: input.hostname }, context, async () => this.security.list({ offset: 0, limit: this.settings.maxResults }, context));
