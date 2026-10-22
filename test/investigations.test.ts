@@ -2,19 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PropertyInvestigation } from '../src/application/property-investigation.js';
 import { SecurityInvestigation } from '../src/application/security-investigation.js';
-import { WafInvestigation } from '../src/application/waf-investigation.js';
 import { OperationalInvestigation } from '../src/application/operational-investigation.js';
 import { DocumentationInvestigation } from '../src/application/documentation-investigation.js';
 import { InvestigationError } from '../src/domain/errors.js';
 import { asObject } from '../src/domain/json.js';
-import event from './fixtures/siem-official.json' with { type: 'json' };
 import { FixtureReader, code, context, settings } from './helpers.js';
 
 const page = { offset: 0, limit: 50 };
 const property = { propertyId: 'prp_123', environment: 'PRODUCTION' as const };
-const query = { configIds: [14227], offset: 'fixture-token', apiLimit: 5, resultOffset: 0, limit: 50, requestId: event.httpMessage.requestId };
-function stream(action: string, status: string) { return { stream: JSON.stringify({ ...event, attackData: { ...event.attackData, appliedAction: action }, httpMessage: { ...event.httpMessage, status } }) + '\n{"total":1,"offset":"next"}' }; }
-function operational(reader: FixtureReader): OperationalInvestigation { return new OperationalInvestigation(new PropertyInvestigation(reader, settings), new SecurityInvestigation(reader, settings), new WafInvestigation(reader, settings), settings); }
+function operational(reader: FixtureReader): OperationalInvestigation { return new OperationalInvestigation(new PropertyInvestigation(reader, settings), new SecurityInvestigation(reader, settings), settings); }
 
 test('Property production, staging and latest remain distinct; absent active has no fallback', async () => {
   const reader = new FixtureReader(() => ({ properties: { items: [{ propertyId: 'prp_123', productionVersion: 2, stagingVersion: 3, latestVersion: 8 }] } }));
@@ -59,20 +55,6 @@ test('AppSec partial permissions preserve successful sections and rate policy ac
 test('AppSec missing activation history is an error', async () => {
   await assert.rejects(new SecurityInvestigation(new FixtureReader(() => ({})), settings).activations({ configId: 1, ...page }, context()), code('INVALID_RESPONSE'));
 });
-test('Scenario A: exact SIEM request denial supplies evidence and rule IDs', async () => {
-  const waf = new WafInvestigation(new FixtureReader(() => stream('deny', '403')), settings);
-  const result = await waf.request(query, context());
-  assert.equal(result.inferences[0]?.assessment, 'siem_reports_deny_for_matching_request');
-  assert.equal(result.evidence[0]?.pagination.scanned, 1);
-});
-test('Scenario B: 403 without final denial or without events is inconclusive', async () => {
-  for (const fixture of [stream('alert', '403'), { stream: '{"total":0,"offset":"next"}' }]) {
-    const result = await operational(new FixtureReader(() => fixture)).http403({ ...query, hostname: event.httpMessage.host, environment: 'PRODUCTION', includeConfiguration: false }, context());
-    assert.equal(result.inferences[0]?.assessment, 'insufficient_evidence_to_attribute_403');
-    assert.equal(result.inferences[0]?.originAttribution, 'unavailable');
-    assert.ok(result.limitations.some(text => text.includes('não comprova')));
-  }
-});
 test('Scenario C: activation in window and config diff do not establish causality', async () => {
   const reader = new FixtureReader(call => call.operation === 'propertyRules' ? { rules: { behaviors: [{ name: 'caching', options: { ttl: call.parameters.version === 1 ? 30 : 60 } }] } } : { activations: { items: [{ propertyVersion: 2, network: 'PRODUCTION', status: 'ACTIVE', submitDate: '2026-10-09T12:01:00Z' }] } });
   const result = await operational(reader).configurationChange({ property: { propertyId: 'prp_123', fromVersion: 1, toVersion: 2, subtreePointer: '' }, fromTime: '2026-10-09T12:00:00Z', toTime: '2026-10-09T12:02:00Z', ...page }, context());
@@ -86,23 +68,6 @@ test('Scenario D: management API 403 keeps other sources and does not imply appl
   assert.equal(result.status, 'partial'); assert.equal(result.evidence.length, 5);
   assert.equal(asObject(result.unavailable[0]?.error).code, 'PERMISSION_DENIED');
 });
-test('Scenario E: outside retention fails before upstream and does not invent history', async () => {
-  const reader = new FixtureReader(() => stream('deny', '403'));
-  const waf = new WafInvestigation(reader, settings);
-  const now = Math.floor(Date.now() / 1000);
-  for (const period of [{ from: now - 43201, to: now - 5 }, { from: now - 60, to: now }, { from: now - 5, to: now - 60 }]) await assert.rejects(waf.events({ configIds: [1], apiLimit: 5, resultOffset: 0, limit: 5, ...period }, context()), code('INVALID_INPUT'));
-  assert.equal(reader.calls.length, 0);
-});
-test('Local SIEM pagination releases remote offset only after consuming matched events', async () => {
-  const one = JSON.stringify(event);
-  const reader = new FixtureReader(() => ({ stream: one + '\n' + one + '\n{"total":2,"offset":"next","limit":2}' }));
-  const waf = new WafInvestigation(reader, settings);
-  const first = await waf.events({ ...query, limit: 1 }, context());
-  assert.equal(first.evidence[0]?.pagination.nextOffset, null);
-  assert.equal(first.evidence[0]?.pagination.nextResultOffset, 1);
-  const second = await waf.events({ ...query, limit: 1, resultOffset: 1 }, context());
-  assert.equal(second.evidence[0]?.pagination.nextOffset, 'next');
-});
 test('Document catalog ranking, partial index failure and character paging', async () => {
   const docs = new DocumentationInvestigation({
     async index(_product, section) { if (section === 'docs') throw new InvestigationError('NOT_FOUND', 'Unavailable index'); return { text: '[Caching rules](https://techdocs.akamai.com/property-mgr/reference/get-property.md): caching behavior\n[External](https://evil.test/)', url: 'https://techdocs.akamai.com/property-mgr/reference/llms.txt', retrievedAt: '2026-10-09T12:00:00Z' }; },
@@ -112,4 +77,44 @@ test('Document catalog ranking, partial index failure and character paging', asy
   assert.equal(results.status, 'partial'); assert.equal(results.evidence[1]?.pagination.total, 1);
   assert.equal((await docs.get({ documentationId: 'property-mgr/reference/get-property', startCharacter: 100, maxCharacters: 100 }, context())).evidence[0]?.pagination.nextCharacter, 200);
   await assert.rejects(docs.get({ documentationId: 'https://evil.test', startCharacter: 0, maxCharacters: 100 }, context()), code('INVALID_INPUT'));
+});
+
+test('Hostname discovery normalizes production associations before reading security targets', async () => {
+  const reader = new FixtureReader(call => {
+    if (call.operation === 'propertySearch') return { versions: { items: [] } };
+    if (call.operation === 'securityConfigurations') return { configurations: [
+      { id: 1, productionHostnames: ['EXAMPLE.COM.:443'] },
+      { id: 2, productionHostnames: ['other.example.com'] },
+    ] };
+    if (call.operation === 'securityConfiguration') return { productionVersion: 10 };
+    if (call.operation === 'securitySelectedHostnames') return { hostnameList: ['example.com'] };
+    if (call.operation === 'securityMatchTargets') return { matchTargets: [] };
+    throw new Error('Unexpected operation');
+  });
+  const result = await operational(reader).hostname({ hostname: 'example.com', environment: 'PRODUCTION', configIds: [], ...page }, context());
+  assert.equal(result.status, 'success');
+  const targets = reader.calls.filter(call => call.operation === 'securityMatchTargets');
+  assert.equal(targets.length, 1);
+  assert.equal(targets[0]?.parameters.configId, 1);
+});
+
+test('All-product documentation search reads the four supported indexes and returns both products', async () => {
+  const indexes: string[] = [];
+  let pageCalls = 0;
+  const docs = new DocumentationInvestigation({
+    async index(product, section) {
+      indexes.push(`${product}/${section}`);
+      return {
+        text: `[Rules](https://techdocs.akamai.com/${product}/reference/get-rules.md): rules reference`,
+        url: `https://techdocs.akamai.com/${product}/${section}/llms.txt`, retrievedAt: '2026-10-09T12:00:00Z',
+      };
+    },
+    async page() { pageCalls++; throw new Error('Unexpected page fetch'); },
+  }, settings);
+  const result = await docs.search({ query: 'rules', product: 'all', ...page }, context());
+  assert.equal(result.status, 'success');
+  assert.deepEqual(indexes, ['property-mgr/reference', 'property-mgr/docs', 'application-security/reference', 'application-security/changelog']);
+  assert.equal(result.evidence.at(-1)?.pagination.total, 2);
+  await assert.rejects(docs.get({ documentationId: 'unsupported-product/reference/get-config', startCharacter: 0, maxCharacters: 100 }, context()), code('INVALID_INPUT'));
+  assert.equal(pageCalls, 0);
 });

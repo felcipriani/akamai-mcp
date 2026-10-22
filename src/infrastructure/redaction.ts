@@ -9,9 +9,10 @@ export class Redactor {
   private readonly secrets: string[];
 
   constructor(configuration: Configuration) {
-    this.secrets = [...new Set([configuration.credentials, configuration.siemCredentials].flatMap(credentials => credentials ? [
+    const credentials = configuration.credentials;
+    this.secrets = [...new Set(credentials ? [
       credentials.clientToken, credentials.clientSecret, credentials.accessToken,
-    ] : []))].filter(value => value.length > 0).sort((left, right) => right.length - left.length);
+    ] : [])].filter(value => value.length > 0).sort((left, right) => right.length - left.length);
   }
 
   text(value: string): string {

@@ -21,13 +21,9 @@ node --env-file=.env dist/index.js
 
 Use [.env.example](../.env.example) como referência e mantenha credenciais fora do controle de versão.
 
-## Escopo de conta e SIEM
+## Escopo de conta
 
 `AKAMAI_ACCOUNT_SWITCH_KEY` fixa a conta consultada pelas APIs PAPI e Application Security. O agente não pode alterar esse valor por uma ferramenta.
-
-As consultas SIEM ficam desabilitadas até que `AKAMAI_SIEM_ENABLED=true` seja definido. Essa opção permite consultar a API; a integração e a coleta precisam estar habilitadas na Akamai, com as permissões descritas em [Segurança](security.md).
-
-Por padrão, SIEM utiliza as credenciais principais. Para uma conta ou API client separado, forneça o conjunto completo `AKAMAI_SIEM_HOST`, `AKAMAI_SIEM_CLIENT_TOKEN`, `AKAMAI_SIEM_CLIENT_SECRET` e `AKAMAI_SIEM_ACCESS_TOKEN`. Esse conjunto é obrigatório quando `AKAMAI_ACCOUNT_SWITCH_KEY` está definido, pois SIEM não aceita account switch.
 
 ## Ambiente de execução
 

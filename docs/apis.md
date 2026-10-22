@@ -2,7 +2,7 @@
 
 Os nomes internos em `read-policy.ts` vinculam cada consulta à política de operações permitidas.
 
-Base principal: especificações oficiais [PAPI v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/papi/v1/openapi.json), [AppSec v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/appsec/v1/openapi.json) e [SIEM v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/siem/v1/openapi.json). Placeholders `version` no código correspondem a `propertyVersion` e `versionNumber` nas respectivas APIs.
+Base principal: especificações oficiais [PAPI v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/papi/v1/openapi.json) e [AppSec v1](https://github.com/akamai/akamai-apis/blob/4521f29ef4e3dba15bbd5617365ff65d00af5049/apis/appsec/v1/openapi.json). Placeholders `version` no código correspondem a `propertyVersion` e `versionNumber` nas respectivas APIs.
 
 ## Property Manager API
 
@@ -53,33 +53,8 @@ Não se utiliza POST `/configs/{configId}/versions/{version}/export`: esse contr
 
 Fontes: [resumo Application Security](https://techdocs.akamai.com/application-security/reference/api-summary), [rate policies](https://techdocs.akamai.com/application-security/reference/get-rate-policies), [ações de rate policies](https://techdocs.akamai.com/application-security/reference/get-rate-policies-actions), [metadados de versão](https://techdocs.akamai.com/application-security/reference/get-version-number), [export síncrono](https://techdocs.akamai.com/application-security/reference/get-export-config-version).
 
-## SIEM Integration API
-
-GET `/siem/v1/configs/{configIds}`. A API admite vários IDs separados por ponto e vírgula; o servidor limita a dez IDs e os codifica na rota. Não envia `accountSwitchKey`.
-
-| Aspecto | Contrato e decisão |
-| --- | --- |
-| Consulta temporal | from/to inteiros epoch seconds e limit; nunca combinados com offset |
-| Continuação | offset e limit; sem from/to. Token pode expirar e produzir HTTP 416 |
-| Retenção | Replay documentado de 12 horas; to pelo menos 5 segundos antes do presente |
-| Ordenação | Armazenamento de logs, que pode diferir de httpMessage.start; eventos podem chegar atrasados |
-| Paginação | NDJSON: eventos por linha e última linha com offset/total e limit quando aplicável. O programa exige contexto final e total consistente |
-| Volume | API documenta até 600.000 logs por consulta, limit aproximado e possível retorno ligeiramente maior. Servidor restringe apiLimit a 5.000 e limita bytes |
-| Filtros | API não oferece filtros por IP, hostname, path, requestId, ação ou regra. O servidor aplica esses filtros aos eventos recebidos na página |
-| Frequência | Documento recomenda evitar mais de uma chamada por segundo. O servidor espaça todas as tentativas SIEM no processo e trata 429 com backoff |
-| Coleta | Requer integração e coleta habilitadas, política/configuração correta e papel Manage SIEM; não são habilitados pelo MCP |
-| Evidências | attackData: configId, policyId, clientIP, appliedAction e facets de regras. httpMessage: requestId, host, path, status, method, start e metadados de conexão |
-| Decodificação | URL decode preservando `+`, split por `;`, base64 por facet; relaciona regras pela posição e sinaliza comprimentos desiguais |
-| Conteúdo sensível | Não retorna headers, query, apiKey, ruleData ou ruleSelectors. Não persiste eventos |
-
-A documentação de onboarding solicita nível de acesso SIEM READ-WRITE, apesar de a operação de consulta ser GET. A política do servidor permanece estritamente de leitura; nenhuma ferramenta habilita coleta ou altera permissões. O administrador deve verificar essa particularidade com os controles corporativos e evitar conceder direitos adicionais a outras APIs. Consulte [get started SIEM](https://techdocs.akamai.com/siem-integration/reference/api-get-started).
-
-As respostas podem se tornar incompletas após a janela de streaming documentada de dois minutos. O timeout padrão do servidor é menor e o limite de bytes aborta corpos grandes. Sem linha final o servidor retorna erro, sem liberar um offset enganoso. Reduza apiLimit e repita a consulta original. Não há coleta contínua para compensar retenção ou atraso.
-
-Fontes: [fetch security events](https://techdocs.akamai.com/siem-integration/reference/get-config), [rate limits](https://techdocs.akamai.com/siem-integration/reference/rate-limits), [configuration rule data](https://techdocs.akamai.com/siem-integration/reference/configuration-rule), [SIEM API](https://techdocs.akamai.com/siem-integration/reference/api), [EdgeGrid e account switch](https://techdocs.akamai.com/developer/docs/edgegrid).
-
 ## Documentação pública
 
-Somente HTTPS para `techdocs.akamai.com`, nos produtos property-mgr, application-security e siem-integration. Busca lê até seis índices de seção `llms.txt`; recuperação lê um slug `docs`, `reference` ou `changelog` com `.md`. Destinos não podem ser fornecidos como URL e redirects são recusados. A interface Markdown é descrita nos [índices oficiais](https://techdocs.akamai.com/siem-integration/llms.txt).
+Somente HTTPS para `techdocs.akamai.com`, nos produtos property-mgr e application-security. Busca lê até quatro índices de seção `llms.txt`; recuperação lê um slug `docs`, `reference` ou `changelog` com `.md`. Destinos não podem ser fornecidos como URL e redirects são recusados. A interface Markdown é descrita nos [índices oficiais](https://techdocs.akamai.com/property-mgr/llms.txt).
 
 Isso não oferece busca global por toda a plataforma, verificação contratual, conteúdo privado de Control Center ou busca semântica. Erro de um índice é registrado como falha parcial, não substituído por resultados simulados. Nenhuma página inteira é baixada para construir índice ou embeddings.

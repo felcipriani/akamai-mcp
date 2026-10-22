@@ -47,8 +47,7 @@ function upstreamError(status: number, text: string, api: string, operation: str
   if (status === 401) return new InvestigationError('AUTHENTICATION_FAILED', 'Autenticação recusada pela API.', details);
   if (status === 403) return new InvestigationError('PERMISSION_DENIED', 'API recusou acesso; isso não comprova ausência de licença.', details);
   if (status === 404) return new InvestigationError('NOT_FOUND', 'Recurso não encontrado; escopo ou disponibilidade podem influenciar a resposta.', details);
-  if (status === 416) return new InvestigationError('OFFSET_EXPIRED', 'Offset SIEM expirado; consulte um período dentro da retenção.', details);
-  if (status === 428) return new InvestigationError('FEATURE_AVAILABILITY_UNKNOWN', 'Pré-condição da API não satisfeita. Verifique a configuração SIEM.', details);
+  if (status === 428) return new InvestigationError('FEATURE_AVAILABILITY_UNKNOWN', 'Pré-condição da API não satisfeita.', details);
   if (status === 429) return new InvestigationError('RATE_LIMITED', 'Limite de requisições atingido.', details, true);
   return new InvestigationError('UPSTREAM_ERROR', 'API retornou erro.', details, status >= 500);
 }
@@ -64,11 +63,9 @@ export class BoundedHttpClient {
     context: InvestigationContext,
     api: string,
     operation: string,
-    beforeAttempt: () => Promise<void> = async () => {},
   ): Promise<HttpReply> {
     for (let attempt = 0; attempt <= this.settings.maxRetries; attempt++) {
       context.consumeRequest();
-      await beforeAttempt();
       context.checkpoint();
       const timeout = AbortSignal.timeout(this.settings.requestTimeoutMs);
       const signal = AbortSignal.any([context.signal, timeout]);

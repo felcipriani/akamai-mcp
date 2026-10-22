@@ -7,7 +7,6 @@ import { BoundedHttpClient } from './http.js';
 const allowedSections: Record<DocumentationProduct, readonly string[]> = {
   'property-mgr': ['reference', 'docs'],
   'application-security': ['reference', 'changelog'],
-  'siem-integration': ['reference', 'docs'],
 };
 
 export class PublicDocumentationSource implements DocumentationSource {
@@ -21,7 +20,7 @@ export class PublicDocumentationSource implements DocumentationSource {
   }
 
   async page(documentationId: string, context: InvestigationContext): Promise<DocumentReply> {
-    if (!/^(property-mgr|application-security|siem-integration)\/(reference|docs|changelog)\/[a-z0-9][a-z0-9-]{0,180}$/.test(documentationId)) {
+    if (!/^(property-mgr|application-security)\/(reference|docs|changelog)\/[a-z0-9][a-z0-9-]{0,180}$/.test(documentationId)) {
       throw new InvestigationError('OPERATION_NOT_ALLOWED', 'Página documental fora da política.');
     }
     return this.read(`/${documentationId}.md`, context);

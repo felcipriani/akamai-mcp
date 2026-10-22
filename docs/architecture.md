@@ -8,7 +8,7 @@ flowchart LR
     M --> A[Investigações]
     A --> E[Política de leitura e EdgeGrid]
     A --> D[Documentação pública]
-    E --> K[PAPI / AppSec / SIEM]
+    E --> K[PAPI / AppSec]
     D --> T[Akamai TechDocs]
     A --> R[Evidências e interpretação]
     R --> S[Sanitização da resposta]
@@ -21,8 +21,8 @@ flowchart LR
 | --- | --- |
 | `src/configuration` | Credenciais, opções de execução e metadados do pacote |
 | `src/mcp` | Registro das ferramentas, schemas de entrada e contrato de saída |
-| `src/application` | Consultas de properties, segurança, eventos, documentação e composição de investigações |
-| `src/domain` | Operações permitidas, paginação, diferenças estruturais, regras, eventos SIEM e erros |
+| `src/application` | Consultas de properties, segurança, documentação e composição de investigações |
+| `src/domain` | Operações permitidas, paginação, diferenças estruturais, regras, hostnames e erros |
 | `src/infrastructure` | HTTP, assinatura EdgeGrid, acesso às APIs, documentação e sanitização |
 
 `src/index.ts` valida a configuração e inicia o transporte. O registro MCP utiliza o SDK TypeScript e os schemas utilizam Zod. A versão anunciada pelo servidor é lida de `package.json`.
@@ -49,8 +49,8 @@ As árvores de regras preservam hierarquia, critérios ancestrais e JSON Pointer
 
 ## Consultas e ciclo de vida
 
-A paginação é explícita. As ferramentas usam os parâmetros das APIs ou recortes em memória, conforme a fonte. URLs de continuação não são executadas diretamente. SIEM lê uma página de eventos por chamada e aplica os filtros aos dados recebidos; o cliente percorre os cursores para ampliar a cobertura.
+A paginação é explícita. As ferramentas usam os parâmetros das APIs ou recortes em memória, conforme a fonte. URLs de continuação não são executadas diretamente.
 
 O transporte controla tempo, tentativas, concorrência e volume de dados. Cada tentativa autenticada recebe uma nova assinatura. Cancelamento MCP e encerramento do processo interrompem requisições e esperas pendentes. Redirecionamentos são recusados.
 
-O processo não mantém histórico de eventos ou coleta em segundo plano. Os resultados refletem o escopo e a disponibilidade das fontes no momento da consulta.
+Os resultados refletem o escopo e a disponibilidade das fontes no momento da consulta.

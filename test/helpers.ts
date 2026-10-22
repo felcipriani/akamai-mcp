@@ -21,15 +21,14 @@ export function code(expected: string): (error: unknown) => boolean {
 export interface ReadCall { operation: Operation; parameters: Parameters; query: Query; hostname?: string | undefined }
 export class FixtureReader implements AkamaiReader {
   readonly calls: ReadCall[] = [];
-  constructor(private readonly fixture: (call: ReadCall) => JsonValue | Error | { stream: string }) {}
+  constructor(private readonly fixture: (call: ReadCall) => JsonValue | Error) {}
   async read(operation: Operation, parameters: Parameters, query: Query, _context: InvestigationContext, hostname?: string): Promise<ApiReply> {
     const call = { operation, parameters, query, hostname };
     this.calls.push(call);
     const value = this.fixture(call);
     if (value instanceof Error) throw value;
-    const stream = typeof value === 'object' && value !== null && !Array.isArray(value) && 'stream' in value ? value['stream'] : null;
-    return { api: operation.startsWith('property') ? 'PAPI' : operation === 'securityEvents' ? 'SIEM' : 'Application Security',
-      operation, data: stream ? null : value as JsonValue, text: typeof stream === 'string' ? stream : JSON.stringify(value),
+    return { api: operation.startsWith('property') ? 'PAPI' : 'Application Security',
+      operation, data: value, text: JSON.stringify(value),
       etag: 'fixture-etag', retrievedAt: '2026-10-09T12:00:00Z' };
   }
 }

@@ -1,5 +1,4 @@
 // Child-process fixture only. Every fetch is controlled; no external requests.
-import event from './siem-official.json' with { type: 'json' };
 
 globalThis.fetch = async (input, init) => {
   if (process.env.FIXTURE_DELAY_MS) await new Promise((resolve, reject) => {
@@ -35,7 +34,6 @@ globalThis.fetch = async (input, init) => {
   else if (path.endsWith('/selected-hostnames')) data = { hostnameList: ['example.com'] };
   else if (path.endsWith('/rate-policies')) data = path.includes('/security-policies/') ? { ratePolicyActions: [{ id: 1, action: 'deny' }] } : { ratePolicies: [{ id: 1, threshold: 100 }] };
   else if (path.endsWith('/activations')) data = { activationHistory: [{ version: 10, network: 'PRODUCTION', status: 'ACTIVE', activationDate: '2026-10-09T12:00:00Z' }] };
-  else if (path.startsWith('/siem/v1/configs/')) return new Response(JSON.stringify({ ...event, attackData: { ...event.attackData, appliedAction: 'deny' }, httpMessage: { ...event.httpMessage, host: 'example.com', status: '403' } }) + '\n{"total":1,"offset":"fixture-next"}');
   else throw new Error('Fixture rejects unexpected route');
   return new Response(JSON.stringify(data), { headers: { 'content-type': 'application/json' } });
 };

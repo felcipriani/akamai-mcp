@@ -9,7 +9,7 @@ import { loadConfiguration } from '../src/configuration/config.js';
 import { code, configuration, context, settings } from './helpers.js';
 
 const url = new URL('https://akab-test.luna.akamaiapis.net/papi/v1/groups');
-for (const [status, expected] of [[401, 'AUTHENTICATION_FAILED'], [403, 'PERMISSION_DENIED'], [404, 'NOT_FOUND'], [416, 'OFFSET_EXPIRED'], [428, 'FEATURE_AVAILABILITY_UNKNOWN'], [429, 'RATE_LIMITED'], [500, 'UPSTREAM_ERROR'], [502, 'UPSTREAM_ERROR'], [503, 'UPSTREAM_ERROR'], [504, 'UPSTREAM_ERROR'], [302, 'UPSTREAM_ERROR']] as const) test(`HTTP ${status} maps to ${expected}`, async t => {
+for (const [status, expected] of [[401, 'AUTHENTICATION_FAILED'], [403, 'PERMISSION_DENIED'], [404, 'NOT_FOUND'], [416, 'UPSTREAM_ERROR'], [428, 'FEATURE_AVAILABILITY_UNKNOWN'], [429, 'RATE_LIMITED'], [500, 'UPSTREAM_ERROR'], [502, 'UPSTREAM_ERROR'], [503, 'UPSTREAM_ERROR'], [504, 'UPSTREAM_ERROR'], [302, 'UPSTREAM_ERROR']] as const) test(`HTTP ${status} maps to ${expected}`, async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('{"title":"Problem","requestId":"test","detail":"private"}', { status }));
   await assert.rejects(new BoundedHttpClient({ ...settings, maxRetries: 0 }).request(url, 'GET', '', () => ({}), context(), 'PAPI', 'propertyGroups'), code(expected));
   assert.equal(fetch.mock.callCount(), 1);
@@ -25,7 +25,7 @@ test('Transient response retries with fresh signatures and honors Retry-After', 
 });
 test('Retry-After exceeding cap does not retry or wait', async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('busy', { status: 429, headers: { 'retry-after': '120' } }));
-  await assert.rejects(new BoundedHttpClient(settings).request(url, 'GET', '', () => ({}), context(), 'SIEM', 'securityEvents'), code('RATE_LIMITED'));
+  await assert.rejects(new BoundedHttpClient(settings).request(url, 'GET', '', () => ({}), context(), 'PAPI', 'propertyGroups'), code('RATE_LIMITED'));
   assert.equal(fetch.mock.callCount(), 1);
 });
 test('HTTP-date Retry-After exceeding cap is respected', async t => {
@@ -68,25 +68,16 @@ test('Akamai URL, POST body and fixed PAPI headers match the closed contract', a
   assert.equal(second.searchParams.get('accountSwitchKey'), 'account:1');
   assert.equal(new URL(String(fetch.mock.calls[2]?.arguments[0])).searchParams.get('validateHostnames'), 'false');
 });
-test('Missing credentials and disabled/cross-account SIEM make zero requests', async t => {
+test('Missing credentials make zero requests', async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('{}'));
   await assert.rejects(new AkamaiClient(loadConfiguration({})).read('propertyGroups', {}, {}, context()), code('CONFIGURATION_ERROR'));
-  await assert.rejects(new AkamaiClient(configuration).read('securityEvents', { configIds: '1' }, { offset: 'next' }, context()), code('FEATURE_NOT_ENABLED'));
-  await assert.rejects(new AkamaiClient({ ...configuration, settings: { ...settings, siemEnabled: true, accountSwitchKey: 'other' } }).read('securityEvents', { configIds: '1' }, { offset: 'next' }, context()), code('CONFIGURATION_ERROR'));
   assert.equal(fetch.mock.callCount(), 0);
-});
-test('SIEM encodes configIds and spaces retries/calls by one second', async t => {
-  const times: number[] = [];
-  const fetch = t.mock.method(globalThis, 'fetch', async () => { times.push(Date.now()); return new Response('{"total":0,"offset":"next"}'); });
-  const client = new AkamaiClient({ ...configuration, settings: { ...settings, siemEnabled: true } });
-  await Promise.all([client.read('securityEvents', { configIds: '1;2' }, { offset: 'next', limit: 5 }, context()), client.read('securityEvents', { configIds: '1;2' }, { offset: 'next', limit: 5 }, context())]);
-  assert.ok((times[1] ?? 0) - (times[0] ?? 0) >= 990);
-  assert.ok(String(fetch.mock.calls[0]?.arguments[0]).includes('/configs/1%3B2?'));
 });
 test('Documentation source rejects arbitrary URLs and redirects', async t => {
   const fetch = t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 302, headers: { location: 'https://evil.test' } }));
   const docs = new PublicDocumentationSource(settings);
   await assert.rejects(docs.page('https://evil.test', context()), code('OPERATION_NOT_ALLOWED'));
+  await assert.rejects(docs.page('unsupported-product/reference/get-config', context()), code('OPERATION_NOT_ALLOWED'));
   await assert.rejects(docs.page('property-mgr/reference/get-property', context()), code('UPSTREAM_ERROR'));
   assert.equal(fetch.mock.callCount(), 1);
 });

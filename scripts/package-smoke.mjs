@@ -28,6 +28,12 @@ try {
     const client = new Client({ name: 'akamai-package-validation', version: '1.0.0' },
       modern ? { versionNegotiation: { mode: { pin: '2026-07-28' } } } : {});
     const env = { ...getDefaultEnvironment() };
+    // Preserve the caller's network and CA settings for the npm subprocess.
+    for (const key of ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'ALL_PROXY',
+      'http_proxy', 'https_proxy', 'no_proxy', 'all_proxy', 'NODE_EXTRA_CA_CERTS',
+      'SSL_CERT_FILE', 'SSL_CERT_DIR', 'npm_config_proxy', 'npm_config_https_proxy', 'npm_config_cafile']) {
+      if (process.env[key]) env[key] = process.env[key];
+    }
     // Use the caller's cache, but do not forward Akamai credentials to this smoke.
     const cache = process.env.npm_config_cache ?? process.env.NPM_CONFIG_CACHE;
     if (cache) env.npm_config_cache = cache;
@@ -38,7 +44,7 @@ try {
       await client.connect(transport);
       assert.deepEqual(client.getServerVersion(), { name: manifest.name, version: manifest.version });
       const list = await client.listTools();
-      assert.equal(list.tools.length, 21);
+      assert.equal(list.tools.length, 18);
       const reply = await client.callTool({ name: 'get_active_property_version', arguments: { propertyId: 'prp_123' } });
       assert.equal(reply.isError, true);
       assert.ok(JSON.stringify(reply.structuredContent).includes('CONFIGURATION_ERROR'));

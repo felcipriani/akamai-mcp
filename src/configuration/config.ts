@@ -16,12 +16,11 @@ const settingsSchema = z.object({
   maxResults: z.coerce.number().int().min(1).max(500).default(100),
   maxRequestsPerTool: z.coerce.number().int().min(1).max(100).default(30),
   maxConcurrentTools: z.coerce.number().int().min(1).max(8).default(4),
-  siemEnabled: z.enum(['true', 'false']).default('false').transform(value => value === 'true'),
   accountSwitchKey: z.string().regex(/^[A-Za-z0-9:_-]{1,256}$/).optional(),
 });
 
 export type Settings = z.infer<typeof settingsSchema>;
-export interface Configuration { credentials: Credentials | null; siemCredentials: Credentials | null; settings: Settings }
+export interface Configuration { credentials: Credentials | null; settings: Settings }
 
 function loadCredentials(env: NodeJS.ProcessEnv, prefix: string): Credentials {
   const parsed = credentialsSchema.safeParse({
@@ -38,17 +37,14 @@ export function loadConfiguration(env: NodeJS.ProcessEnv = process.env): Configu
   const keys = ['HOST', 'CLIENT_TOKEN', 'CLIENT_SECRET', 'ACCESS_TOKEN'];
   const hasCredentials = keys.some(key => Boolean(env[`AKAMAI_${key}`]));
   const credentials = hasCredentials ? loadCredentials(env, 'AKAMAI_') : null;
-  const siemKeys = ['HOST', 'CLIENT_TOKEN', 'CLIENT_SECRET', 'ACCESS_TOKEN'];
-  const hasSiemCredentials = siemKeys.some(key => Boolean(env[`AKAMAI_SIEM_${key}`]));
-  const siemCredentials = hasSiemCredentials ? loadCredentials(env, 'AKAMAI_SIEM_') : credentials;
   const parsed = settingsSchema.safeParse({
     requestTimeoutMs: env['AKAMAI_REQUEST_TIMEOUT_MS'], toolTimeoutMs: env['AKAMAI_TOOL_TIMEOUT_MS'],
     maxRetries: env['AKAMAI_MAX_RETRIES'], maxRetryDelayMs: env['AKAMAI_MAX_RETRY_DELAY_MS'],
     maxResponseBytes: env['AKAMAI_MAX_RESPONSE_BYTES'], maxToolBytes: env['AKAMAI_MAX_TOOL_BYTES'],
     maxResults: env['AKAMAI_MAX_RESULTS'], maxRequestsPerTool: env['AKAMAI_MAX_REQUESTS_PER_TOOL'],
-    maxConcurrentTools: env['AKAMAI_MAX_CONCURRENT_TOOLS'], siemEnabled: env['AKAMAI_SIEM_ENABLED'],
+    maxConcurrentTools: env['AKAMAI_MAX_CONCURRENT_TOOLS'],
     accountSwitchKey: env['AKAMAI_ACCOUNT_SWITCH_KEY'] || undefined,
   });
   if (!parsed.success) throw new InvestigationError('CONFIGURATION_ERROR', 'Limites ou opções de execução inválidos. Consulte .env.example.');
-  return { credentials, siemCredentials, settings: parsed.data };
+  return { credentials, settings: parsed.data };
 }

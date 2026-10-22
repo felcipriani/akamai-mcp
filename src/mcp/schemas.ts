@@ -1,4 +1,3 @@
-import { isIP } from 'node:net';
 import { domainToASCII } from 'node:url';
 import * as z from 'zod/v4';
 
@@ -14,8 +13,6 @@ export const selection = { version: version.optional(), environment };
 export const propertySelection = { ...propertyRef, ...selection };
 export const securitySelection = { configId, ...selection };
 export const subtreePointer = z.string().max(2048).regex(/^(?:\/[^\u0000-\u001f]*)?$/).default('');
-const requestId = z.string().min(1).max(256).regex(/^[A-Za-z0-9_.:-]+$/);
-export const configIds = z.array(configId).min(1).max(10).refine(values => new Set(values).size === values.length, 'configIds devem ser únicos.');
 const path = z.string().min(1).max(2048).regex(/^\/[^\u0000-\u001f?#]*$/);
 
 export const propertyListSchema = z.object({
@@ -36,31 +33,6 @@ export const securityPolicySchema = z.object({ ...securitySelection, ...page, po
 export const rateLimitingSchema = z.object({ ...securitySelection, ...page, policyId: identifier.optional() }).strict();
 export const securityHistorySchema = z.object({ configId, ...page, environment: z.enum(['PRODUCTION', 'STAGING']).optional() }).strict();
 
-export const wafFields = {
-  configIds,
-  from: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
-  to: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
-  offset: z.string().min(1).max(2048).regex(/^[^\u0000-\u0020]+$/).optional(),
-  apiLimit: z.number().int().min(1).max(5000).default(1000),
-  resultOffset: z.number().int().min(0).max(100000).default(0),
-  limit: page.limit,
-  hostname: hostname.optional(),
-  clientIp: z.string().refine(value => isIP(value) !== 0, 'Endereço IP inválido.').optional(),
-  requestId: requestId.optional(), path: path.optional(),
-  action: z.string().min(1).max(64).optional(), policyId: identifier.optional(),
-  ruleId: z.string().min(1).max(128).regex(/^[A-Za-z0-9_.:-]+$/).optional(),
-  httpStatus: z.number().int().min(100).max(599).optional(),
-};
-function hasValidQueryMode(value: { offset?: string | undefined; from?: number | undefined; to?: number | undefined }): boolean {
-  if (value.offset !== undefined) return value.from === undefined && value.to === undefined;
-  return value.from !== undefined && value.to !== undefined && value.from < value.to;
-}
-
-export const wafEventsSchema = z.object(wafFields).strict().refine(hasValidQueryMode, 'Informe from/to ou offset, sem misturar os modos.');
-export const wafRequestSchema = z.object({ ...wafFields, requestId }).strict().refine(hasValidQueryMode, 'Informe from/to ou offset, sem misturar os modos.');
-export const http403Schema = z.object({
-  ...wafFields, hostname, environment: z.enum(['PRODUCTION', 'STAGING']).default('PRODUCTION'), includeConfiguration: z.boolean().default(true),
-}).strict().refine(hasValidQueryMode, 'Informe from/to ou offset, sem misturar os modos.');
 export const configurationChangeSchema = z.object({
   property: z.object(propertyCompareFields).strict().optional(),
   security: z.object({ configId, fromVersion: version, toVersion: version }).strict().optional(),
@@ -70,7 +42,7 @@ export const configurationChangeSchema = z.object({
 }).strict().refine(value => Boolean(value.property || value.security), 'Informe property, security ou ambos.')
   .refine(value => !value.fromTime || !value.toTime || Date.parse(value.fromTime) < Date.parse(value.toTime), 'fromTime deve preceder toTime.');
 export const documentationSearchSchema = z.object({
-  query: z.string().trim().min(2).max(256), product: z.enum(['property-mgr', 'application-security', 'siem-integration', 'all']).default('all'), ...page,
+  query: z.string().trim().min(2).max(256), product: z.enum(['property-mgr', 'application-security', 'all']).default('all'), ...page,
 }).strict();
 export const documentationGetSchema = z.object({
   documentationId: z.string().min(1).max(256), startCharacter: z.number().int().min(0).max(16777216).default(0), maxCharacters: z.number().int().min(100).max(20000).default(10000),

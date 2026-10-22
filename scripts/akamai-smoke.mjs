@@ -4,7 +4,6 @@ import { InvestigationContext } from '../dist/application/context.js';
 import { AkamaiClient } from '../dist/infrastructure/akamai-client.js';
 import { PropertyInvestigation } from '../dist/application/property-investigation.js';
 import { SecurityInvestigation } from '../dist/application/security-investigation.js';
-import { WafInvestigation } from '../dist/application/waf-investigation.js';
 import { OperationalInvestigation } from '../dist/application/operational-investigation.js';
 import { DocumentationInvestigation } from '../dist/application/documentation-investigation.js';
 import { PublicDocumentationSource } from '../dist/infrastructure/documentation-source.js';
@@ -19,8 +18,7 @@ async function main() {
   const reader = new AkamaiClient({ ...configuration, settings });
   const properties = new PropertyInvestigation(reader, settings);
   const security = new SecurityInvestigation(reader, settings);
-  const waf = new WafInvestigation(reader, settings);
-  const operation = new OperationalInvestigation(properties, security, waf, settings);
+  const operation = new OperationalInvestigation(properties, security, settings);
   async function check(step, task) {
     try {
       const result = await task();
@@ -72,15 +70,11 @@ async function main() {
         }
         if (hostname) await check('combined_hostname_overview', () => operation.hostname({ hostname, environment: 'PRODUCTION', configIds: [configId], offset: 0, limit: 1 }, context));
       }
-      if (settings.siemEnabled) {
-        const now = Math.floor(Date.now() / 1000);
-        await check('siem_recent_60_seconds', () => waf.events({ configIds: [configId], from: now - 65, to: now - 5, apiLimit: 10, resultOffset: 0, limit: 5 }, context));
-      } else report.checks.push({ step: 'siem', status: 'skipped', reason: 'local_opt_in_disabled' });
-    } else report.checks.push({ step: 'siem', status: 'skipped', reason: 'no_authorized_config_id_discovered' });
+    }
   }
   const docs = new DocumentationInvestigation(new PublicDocumentationSource(settings), settings);
   await check('public_documentation_search', () => docs.search({ query: 'rules', product: 'property-mgr', offset: 0, limit: 1 }, context));
-  await check('public_documentation_page', () => docs.get({ documentationId: 'siem-integration/reference/get-config', startCharacter: 0, maxCharacters: 1000 }, context));
+  await check('public_documentation_page', () => docs.get({ documentationId: 'property-mgr/reference/get-property-version-rules', startCharacter: 0, maxCharacters: 1000 }, context));
 }
 try { await main(); } catch (error) { report.checks.push({ step: 'setup', status: 'error', code: error instanceof InvestigationError ? error.code : 'INTERNAL_ERROR' }); }
 console.log(JSON.stringify(report, null, 2));

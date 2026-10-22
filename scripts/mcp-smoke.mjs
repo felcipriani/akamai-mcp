@@ -13,7 +13,7 @@ try {
   console.log(JSON.stringify({ server: client.getServerVersion(), protocolVersion: client.getNegotiatedProtocolVersion(),
     toolCount: list.tools.length, tools: list.tools.map(tool => tool.name) }, null, 2));
   if (process.argv.includes('--documentation')) {
-    const reply = await client.callTool({ name: 'get_akamai_documentation', arguments: { documentationId: 'siem-integration/reference/get-config', maxCharacters: 1000 } });
+    const reply = await client.callTool({ name: 'get_akamai_documentation', arguments: { documentationId: 'property-mgr/reference/get-property-version-rules', maxCharacters: 1000 } });
     console.log(JSON.stringify({ documentationCall: reply.isError ? 'error' : 'success', structuredContent: typeof reply.structuredContent === 'object' }));
     if (reply.isError) process.exitCode = 1;
   }

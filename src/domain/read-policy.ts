@@ -26,7 +26,6 @@ const operations = {
   securityRatePolicyActions: { api: 'Application Security', path: '/appsec/v1/configs/{configId}/versions/{version}/security-policies/{policyId}/rate-policies', query: [] },
   securityActivations: { api: 'Application Security', path: '/appsec/v1/configs/{configId}/activations', query: [] },
   securityExport: { api: 'Application Security', path: '/appsec/v1/export/configs/{configId}/versions/{version}', query: [] },
-  securityEvents: { api: 'SIEM', path: '/siem/v1/configs/{configIds}', query: ['from', 'to', 'offset', 'limit'] },
 } as const;
 
 export type Operation = keyof typeof operations;
@@ -42,8 +41,7 @@ export function permittedRequest(operation: Operation, parameters: Parameters, q
   }
   const path = definition.path.replace(/\{(\w+)\}/g, (_match: string, name: string) => {
     const value = parameters[name];
-    const pattern = name === 'configIds' ? /^[1-9]\d*(;[1-9]\d*){0,9}$/
-      : name === 'configId' || name === 'version' ? /^[1-9]\d*$/
+    const pattern = name === 'configId' || name === 'version' ? /^[1-9]\d*$/
       : name === 'propertyId' ? /^(?:prp_)?[1-9]\d{0,19}$/ : /^[A-Za-z0-9_-]{1,128}$/;
     if (value === undefined || !pattern.test(String(value))) throw new InvestigationError('INVALID_INPUT', `Identificador inválido: ${name}.`);
     return encodeURIComponent(String(value));

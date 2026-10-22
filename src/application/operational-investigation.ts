@@ -1,6 +1,6 @@
 import type { Settings } from '../configuration/config.js';
 import { asArray, asObject, stringValue } from '../domain/json.js';
-import { normalizedHostname } from '../domain/siem.js';
+import { normalizedHostname } from '../domain/hostname.js';
 import { result } from '../domain/results.js';
 import type { InvestigationResult } from '../domain/results.js';
 import { collect } from './common.js';
@@ -8,14 +8,11 @@ import type { InvestigationContext } from './context.js';
 import { PropertyInvestigation } from './property-investigation.js';
 import type { PropertyRef } from './property-investigation.js';
 import { SecurityInvestigation } from './security-investigation.js';
-import { WafInvestigation } from './waf-investigation.js';
-import type { WafQuery } from './waf-investigation.js';
 
 export class OperationalInvestigation {
   constructor(
     private readonly properties: PropertyInvestigation,
     private readonly security: SecurityInvestigation,
-    private readonly waf: WafInvestigation,
     private readonly settings: Settings,
   ) {}
 
@@ -51,28 +48,6 @@ export class OperationalInvestigation {
     }
     if (securityConfigs.length > 5) output.limitations.push('Consolidação limitada a 5 security configurations. Consulte individualmente as demais.');
     output.limitations.push('Consolidação reúne candidatos e associações retornadas pelas APIs. match targets precisam ser interpretados para determinar a política aplicável. Configurações de segurança e CDN são independentes; paginação e escopos podem deixar candidatos de fora.');
-    return output;
-  }
-
-  async http403(input: WafQuery & { hostname: string; environment: 'PRODUCTION' | 'STAGING'; includeConfiguration: boolean }, context: InvestigationContext): Promise<InvestigationResult> {
-    const output = result([]);
-    await collect(output, 'siem_events', { hostname: input.hostname, configIds: input.configIds }, context, () => this.waf.events({ ...input, httpStatus: 403 }, context));
-    if (input.includeConfiguration) await collect(output, 'hostname_configuration', { hostname: input.hostname }, context, () => this.hostname({
-      hostname: input.hostname, environment: input.environment, offset: 0, limit: 10, configIds: input.configIds,
-    }, context));
-    const events = asArray(output.evidence.find(item => item.operation === 'securityEvents')?.data).map(asObject);
-    const denied = events.filter(event => String(event['appliedAction']).toLowerCase() === 'deny');
-    output.inferences.push({
-      kind: 'http_403_assessment',
-      assessment: denied.length ? 'siem_reports_403_and_final_deny' : 'insufficient_evidence_to_attribute_403',
-      exactRequestCorrelation: Boolean(input.requestId),
-      requestIdsWithDeny: denied.map(event => asObject(event['http'])['requestId'] ?? null),
-      originAttribution: 'unavailable',
-      basis: 'httpMessage.status=403 and attackData.appliedAction=deny on the same returned event',
-    });
-    output.unavailable.push({ component: 'origin_response_logs', reason: 'Não há logs da origem ou de todas as requisições nestas APIs. Uma configuração atual não prova o comportamento histórico.' });
-    output.status = 'partial';
-    output.limitations.push('Atribuição ao incidente exige requestId exato e correlação temporal; filtros de hostname/IP/path isolados podem selecionar outras requisições. A ação de uma regra pode diferir da ação final.', 'Uma resposta 403 da API de gestão é erro de permissão da consulta, não evidência de bloqueio da requisição da aplicação.');
     return output;
   }
 

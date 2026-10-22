@@ -15,7 +15,7 @@ export interface AkamaiReader {
   read(operation: Operation, parameters: Parameters, query: Query, context: InvestigationContext, hostname?: string): Promise<ApiReply>;
 }
 
-export type DocumentationProduct = 'property-mgr' | 'application-security' | 'siem-integration';
+export type DocumentationProduct = 'property-mgr' | 'application-security';
 export interface DocumentReply { text: string; retrievedAt: string; url: string }
 export interface DocumentationSource {
   index(product: DocumentationProduct, section: string, context: InvestigationContext): Promise<DocumentReply>;
